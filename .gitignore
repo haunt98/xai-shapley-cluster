@@ -11,4 +11,6 @@
 .vscode
 
 # Projects
+.RData
+.Rhistory
 Rplots.pdf
