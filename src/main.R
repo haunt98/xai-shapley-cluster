@@ -205,7 +205,7 @@ J <- dim(mdata)[2] - 1
 # mdata_test_full=mdata_train_full
 # mdata_test=mdata_train
 
-# Plot
+# Plot training data
 # Assign colors to each cluster for training data
 # [ 1, 1, ..., 1, 2, 2, ..., 2, 3, 3, ..., 3, 4, 4, ..., 4, 5, 5, ..., 5]
 col_array_train <- array(NA, N_train)
@@ -214,7 +214,7 @@ for (k in 1:K) {
 }
 # print(col_array_train)
 
-par(mar = c(2, 5, 1, 1))
+par(mar = c(2, 5, 2, 2)) # margin bottom, left, top, right
 par(mfrow = c(length(include_mdata), 1))
 
 # Plot y, x1, x2, x3, x4 for training data
@@ -222,25 +222,7 @@ for (j in include_mdata) {
   plot(mdata_train[, j], col = col_array_train, ylab = colnames(mdata_full)[j])
 }
 
-# par(mar=c(2,4,2,1)*1)
-# par(mfcol=c(dim(mydata_train_full)[2],2))
-# j=1
-# plot(mydata_train_full[,j],col=col_array_train,ylim=c(min(mydata_train[,j]),max(mydata_train_full[,j])),ylab=colnames(mydata_full)[j],main='Training data',pch=20)
-# for(j in 2:dim(mydata_train_full)[2]){
-#   plot(mydata_train_full[,j],col=col_array_train,ylim=c(min(mydata_train_full[,j]),max(mydata_train_full[,j])),ylab=colnames(mydata_full)[j],main='',pch=20)
-# }
-# j=1
-# plot(mdata_test_full[,j],col=colarray_test,ylim=c(min(mydata_train_full[,j]),max(mydata_train_full[,j])),ylab=colnames(mydata_full)[j],main='Test data',pch=20)
-# for(j in 2:dim(mydata_train_full)[2]){
-#   plot(mdata_test_full[,j],col=colarray_test,ylim=c(min(mydata_train_full[,j]),max(mydata_train_full[,j])),ylab=colnames(mydata_full)[j],pch=20)
-# }
-
-# j=1
-# plot(mydata_eval[,j],col=colarray_eval,ylim=c(min(mydata_train[,j]),max(mydata_train[,j])),main='')
-# for(j in 2:dim(mydata_eval)[2]){
-#   plot(mydata_eval[,j],col=colarray_eval,ylim=c(min(mydata_train[,j]),max(mydata_train[,j])))
-# }
-#
+mtext("Training data", side = 3, line = -1, outer = TRUE)
 
 set.seed(21)
 mydata_test <- mdata_train
