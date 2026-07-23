@@ -222,7 +222,7 @@ mdata_test <- mdata_train
 # Insert anomalies into the test data
 actual_states <- rep(0, dim(mdata_test)[1])
 actual_states[200:249] <- rep(1, 50)
-actual_states[400:449] <- rep(1, 50)
+actual_states[300:349] <- rep(1, 50)
 mdata_test[200:249, 2] <- mdata_test[200:249, 2] + rnorm(50, -0.5, 0.5) # x1
 mdata_test[300:349, 5] <- mdata_test[300:349, 5] + rnorm(50, -0.5, 0.5) # x4
 
