@@ -23,7 +23,7 @@ library(logger)
 log_info("XAI Shapley Cluster")
 
 # TODO: Read paper
-# Auto Asscociative Kernel Regression
+# Auto Associative Kernel Regression
 AAKR <- function(X_test, X_train, h = .2, d2_skip = 0, y_importance = 0) {
   K <- dim(X_train)[1]
   N <- dim(X_train)[2]
