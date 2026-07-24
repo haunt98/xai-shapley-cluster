@@ -286,7 +286,7 @@ fn_accuracy <- function(actual_states, X_train, X_test) {
 
 M <- 250
 
-phim <- array(NA, dim = c(N_test, K, M))
+phim <- array(NA, dim = c(N_test, K, M)) # Per each m in M
 phi <- array(NA, dim = c(N_test, K, M))
 phi_pred_p <- array(NA, dim = c(N_test, K, M))
 phi_pred_idx <- array(NA, dim = c(M, K))
@@ -310,30 +310,38 @@ mydata_train_k_shuffle <- mdata_train_k
 set.seed(7)
 
 for (k in 1:K) {
-  print(k)
+  log_info("Cluster {k}")
   for (m in 1:M) {
-    o <- matrix(sample(1:K), nrow = 1)
+    cluster_permutation <- matrix(sample(1:K), nrow = 1)
+    log_info("Permutation: {cluster_permutation}")
 
     if (msampling == 'out') {
-      if (which(o == k) == 1) {
+      # m is minus, without k
+      # p is plus, with k
+      data_train_p <- R.utils::wrap(
+        mdata_train_k[,, cluster_permutation[1:(which(cluster_permutation == k))]],
+        map = list(NA, 2)
+      )
+      if (which(cluster_permutation == k) == 1) {
+        # Cluster k is first
         data_train_m <- data_train_p * 0
       } else {
-        data_train_m <- R.utils::wrap(mdata_train_k[,, o[1:(which(o == k) - 1)]], map = list(NA, 2))
+        data_train_m <- R.utils::wrap(
+          mdata_train_k[,, cluster_permutation[1:(which(cluster_permutation == k) - 1)]],
+          map = list(NA, 2)
+        )
       }
-      data_train_p <- R.utils::wrap(mdata_train_k[,, o[1:(which(o == k))]], map = list(NA, 2))
 
       if (prediction_accuracy) {
-        #GLOBAL CLASSIFICATION HACK
         if (global_classification) {
-          if (which(o == k) == 1) {
-            phim[, k, m] <- fn_accuracy(true_states, X_train = data_train_p, mdata_test)
+          if (which(cluster_permutation == k) == 1) {
+            phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, mdata_test)
           } else {
-            phim[, k, m] <- fn_accuracy(true_states, X_train = data_train_p, mdata_test) -
-              fn_accuracy(true_states, X_train = data_train_m, mdata_test)
+            phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, mdata_test) -
+              fn_accuracy(actual_states, X_train = data_train_m, mdata_test)
           }
         } else {
-          # IF NOT CLOBAL CLASSIFICATION, RETURN TO USUAL
-          if (which(o == k) == 1) {
+          if (which(cluster_permutation == k) == 1) {
             phim[, k, m] <- abs(
               (mdata_test[, 1] - fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod))
             )^2 -
@@ -348,7 +356,7 @@ for (k in 1:K) {
           }
         }
       } else {
-        if (which(o == k) == 1) {
+        if (which(cluster_permutation == k) == 1) {
           phim[, k, m] <- ((fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod))) - 0 #mean_y_hat_train#mean(mydata_train[,1])
         } else {
           phim[, k, m] <- ((fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod))) -
@@ -356,6 +364,7 @@ for (k in 1:K) {
         }
       }
     } else {
+      # TODO: Leave it alone
       if (msampling == 'continious') {
         for (kk in 1:K) {
           for (j in 1:(J + 1)) {
@@ -381,26 +390,35 @@ for (k in 1:K) {
         }
       }
 
-      if (which(o == k) == 1) {
+      if (which(cluster_permutation == k) == 1) {
         data_train_p <- rbind(
-          R.utils::wrap(mdata_train_k[,, o[1]], map = list(NA, 2)),
-          R.utils::wrap(mydata_train_k_shuffle[,, -o[1]], map = list(NA, 2))
+          R.utils::wrap(mdata_train_k[,, cluster_permutation[1]], map = list(NA, 2)),
+          R.utils::wrap(mydata_train_k_shuffle[,, -cluster_permutation[1]], map = list(NA, 2))
         )
         data_train_m <- R.utils::wrap(mydata_train_k_shuffle[,,], map = list(NA, 2))
-      } else if (which(o == k) == K) {
-        data_train_p <- R.utils::wrap(mdata_train_k[,, o[1:K]], map = list(NA, 2))
+      } else if (which(cluster_permutation == k) == K) {
+        data_train_p <- R.utils::wrap(mdata_train_k[,, cluster_permutation[1:K]], map = list(NA, 2))
         data_train_m <- rbind(
-          R.utils::wrap(mdata_train_k[,, o[1:(K - 1)]], map = list(NA, 2)),
-          R.utils::wrap(mydata_train_k_shuffle[,, -o[1:(K - 1)]], map = list(NA, 2))
+          R.utils::wrap(mdata_train_k[,, cluster_permutation[1:(K - 1)]], map = list(NA, 2)),
+          R.utils::wrap(mydata_train_k_shuffle[,, -cluster_permutation[1:(K - 1)]], map = list(NA, 2))
         )
       } else {
         data_train_p <- rbind(
-          R.utils::wrap(mdata_train_k[,, o[1:which(o == k)]], map = list(NA, 2)),
-          R.utils::wrap(mydata_train_k_shuffle[,, -o[1:which(o == k)]], map = list(NA, 2))
+          R.utils::wrap(mdata_train_k[,, cluster_permutation[1:which(cluster_permutation == k)]], map = list(NA, 2)),
+          R.utils::wrap(
+            mydata_train_k_shuffle[,, -cluster_permutation[1:which(cluster_permutation == k)]],
+            map = list(NA, 2)
+          )
         )
         data_train_m <- rbind(
-          R.utils::wrap(mdata_train_k[,, o[1:(which(o == k) - 1)]], map = list(NA, 2)),
-          R.utils::wrap(mydata_train_k_shuffle[,, -o[1:(which(o == k) - 1)]], map = list(NA, 2))
+          R.utils::wrap(
+            mdata_train_k[,, cluster_permutation[1:(which(cluster_permutation == k) - 1)]],
+            map = list(NA, 2)
+          ),
+          R.utils::wrap(
+            mydata_train_k_shuffle[,, -cluster_permutation[1:(which(cluster_permutation == k) - 1)]],
+            map = list(NA, 2)
+          )
         )
       }
 
@@ -412,17 +430,17 @@ for (k in 1:K) {
         phim[, k, m] <- ((fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod))) -
           ((fn_prediction(data_train = data_train_m, data_test = mdata_test, method = mmethod)))
       }
-    } # end mySampling
+    }
 
     phi[, k, m] <- apply(phim[, k, ], MARGIN = 1, FUN = mean, na.rm = T)
 
     if (prediction_accuracy == TRUE) {
       phi_pred_p[, k, m] <- (mdata_test[, 1] -
         (fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod)))^2
-      phi_pred_idx[m, k] <- which(o == k)
+      phi_pred_idx[m, k] <- which(cluster_permutation == k)
     } else {
       phi_pred_p[, k, m] <- ((fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod)))
-      phi_pred_idx[m, k] <- which(o == k)
+      phi_pred_idx[m, k] <- which(cluster_permutation == k)
     }
   }
 }
