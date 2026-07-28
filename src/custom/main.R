@@ -54,7 +54,7 @@ normalize <- function(X, X_base) {
   if (dim(as.matrix(X))[2] == 1) {
     X_n <- (X - mean(X_base)) / sd(X_base)
   } else {
-    for (j in 1:dim(as.matrix(X))[2]) {
+    for (j in seq_len(dim(as.matrix(X))[2])) {
       X_n[, j] <- (X[, j] - mean(X_base[, j])) / sd(X_base[, j])
     }
   }
@@ -88,7 +88,7 @@ fn_prediction <- function(data_train, data_test, method, ntree = 100, maxnodes =
     pred <- fit$pred
   }
   if (method == 'nnet') {
-    fit <- nnet(x = data_train[, -1], y = data_train[, 1], maxit = 500, size = 5, linout = T, trace = F)
+    fit <- nnet(x = data_train[, -1], y = data_train[, 1], maxit = 500, size = 5, linout = TRUE, trace = FALSE)
     pred <- predict(fit, newdata = data_test[, -1])
   }
   if (method == 'rf') {
@@ -101,19 +101,19 @@ fn_prediction <- function(data_train, data_test, method, ntree = 100, maxnodes =
 
 fn_prediction_error <- function(y, y_hat, metric) {
   if (metric == 'RMSE') {
-    PE <- sqrt(mean((y - y_hat)^2, na.rm = T))
+    PE <- sqrt(mean((y - y_hat)^2, na.rm = TRUE))
   }
   if (metric == 'MSE') {
-    PE <- mean((y - y_hat)^2, na.rm = T)
+    PE <- mean((y - y_hat)^2, na.rm = TRUE)
   }
   if (metric == 'MAE') {
-    PE <- mean(abs(y - y_hat), na.rm = T)
+    PE <- mean(abs(y - y_hat), na.rm = TRUE)
   }
   if (metric == 'sumSE') {
     PE <- sum((y - y_hat)^2)
   }
   if (metric == 'maxSE') {
-    PE <- max((y - y_hat)^2, na.rm = T)
+    PE <- max((y - y_hat)^2, na.rm = TRUE)
   }
   return(PE)
 }
@@ -347,7 +347,7 @@ for (k in 1:K) {
       if (prediction_accuracy) {
         # v = (y - f(x))^2 - y^2
         phi_pred_p[, k, m] <- (mdata_test[, 1] -
-          (fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod)))^2
+          fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod))^2
         phi_pred_idx[m, k] <- which(cluster_permutation == k)
 
         if (cluster_position == 1) {
@@ -372,7 +372,7 @@ for (k in 1:K) {
     }
 
     # Shapley value for cluster k up to m
-    phi[, k, m] <- apply(phim[, k, ], MARGIN = 1, FUN = mean, na.rm = T)
+    phi[, k, m] <- apply(phim[, k, ], MARGIN = 1, FUN = mean, na.rm = TRUE)
     setTxtProgressBar(pb, m)
   }
   close(pb)
