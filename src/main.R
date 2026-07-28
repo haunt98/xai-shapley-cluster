@@ -1,7 +1,7 @@
-require(nnet)
-require(FNN)
-require(randomForest)
 library(R.utils)
+require(FNN)
+require(nnet)
+require(randomForest)
 
 dnvgl <- c(
   rgb(153, 214, 240, maxColorValue = 255),
