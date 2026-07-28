@@ -100,26 +100,6 @@ fn_prediction <- function(data_train, data_test, method, ntree = 100, maxnodes =
 }
 
 
-fn_prediction_error <- function(y, y_hat, metric) {
-  if (metric == 'RMSE') {
-    PE <- sqrt(mean((y - y_hat)^2, na.rm = TRUE))
-  }
-  if (metric == 'MSE') {
-    PE <- mean((y - y_hat)^2, na.rm = TRUE)
-  }
-  if (metric == 'MAE') {
-    PE <- mean(abs(y - y_hat), na.rm = TRUE)
-  }
-  if (metric == 'sumSE') {
-    PE <- sum((y - y_hat)^2)
-  }
-  if (metric == 'maxSE') {
-    PE <- max((y - y_hat)^2, na.rm = TRUE)
-  }
-  return(PE)
-}
-
-
 # Init
 mmethod <- 'rf' # Which regression model to use
 
@@ -303,8 +283,7 @@ M <- 250
 
 phim <- array(NA, dim = c(N_test, K, M))
 phi <- array(NA, dim = c(N_test, K, M))
-phi_pred_p <- array(NA, dim = c(N_test, K, M))
-phi_pred_idx <- array(NA, dim = c(M, K))
+
 
 # Split data into K clusters
 mdata_train_k <- array(NA, dim = c(K_train, J + 1, K))
@@ -358,26 +337,22 @@ for (k in 1:K) {
     } else {
       if (prediction_accuracy) {
         # v = (y - f(x))^2 - y^2
-        phi_pred_p[, k, m] <- (mdata_test[, 1] -
-          fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod))^2
-        phi_pred_idx[m, k] <- which(cluster_permutation == k)
-
         if (cluster_position == 1) {
-          phim[, k, m] <- phi_pred_p[, k, m] - ((mdata_test[, 1] - 0))^2
+          phim[, k, m] <- (mdata_test[, 1] -
+            fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod))^2 -
+            ((mdata_test[, 1] - 0))^2
         } else {
-          phim[, k, m] <- phi_pred_p[, k, m] -
+          phim[, k, m] <- (mdata_test[, 1] -
+            fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod))^2 -
             (mdata_test[, 1] - fn_prediction(data_train = data_train_m, data_test = mdata_test, method = mmethod))^2
         }
       } else {
         # v = f(x)
         # prediction(D+) - prediction(D-)
-        phi_pred_p[, k, m] <- fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod)
-        phi_pred_idx[m, k] <- which(cluster_permutation == k)
-
         if (cluster_position == 1) {
-          phim[, k, m] <- phi_pred_p[, k, m] - 0
+          phim[, k, m] <- fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod) - 0
         } else {
-          phim[, k, m] <- phi_pred_p[, k, m] -
+          phim[, k, m] <- fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod) -
             fn_prediction(data_train = data_train_m, data_test = mdata_test, method = mmethod)
         }
       }
