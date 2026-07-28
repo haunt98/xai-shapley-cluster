@@ -310,8 +310,10 @@ for (k in 1:K) {
 
 set.seed(7)
 
+log_info("Calculating Shapley values for each cluster")
 for (k in 1:K) {
   log_info("Cluster {k}")
+  pb <- txtProgressBar(min = 0, max = M, style = 3)
   for (m in 1:M) {
     cluster_permutation <- matrix(sample(1:K), nrow = 1)
     # print(cluster_permutation)
@@ -371,7 +373,9 @@ for (k in 1:K) {
 
     # Shapley value for cluster k up to m
     phi[, k, m] <- apply(phim[, k, ], MARGIN = 1, FUN = mean, na.rm = T)
+    setTxtProgressBar(pb, m)
   }
+  close(pb)
 }
 
 if (global_classification) {
