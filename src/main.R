@@ -134,7 +134,7 @@ mmetric <- 'MSE'
 mmethod <- 'rf' # Which regression model to use
 
 prediction_accuracy <- TRUE
-global_classification <- TRUE
+global_classification <- FALSE
 
 K <- 5 # Number of clusters
 N <- 100 * K * 4 # Number of datapoints
