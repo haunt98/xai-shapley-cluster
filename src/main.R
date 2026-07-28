@@ -375,89 +375,10 @@ for (k in 1:K) {
 }
 
 
-#test
-mydata_temp <- mdata_test
-fl_temp <- K_test
-MSE <- array(NA, 1)
-set.seed(2)
-for (r in 1:1) {
-  res <- (mydata_temp[, 1] - fn_prediction(data_train = mdata_train, data_test = mydata_temp, method = mmethod))
-  #res=mean(mydata_train[,1])
-  MSE[r] <- mean(res^2)
-}
-mean(MSE)
-sd(MSE)
-
-
-set.seed(3)
-y_hat_temp <- fn_prediction(data_train = mdata_train, data_test = mydata_temp, method = mmethod)
-I <- order(y_hat_temp, decreasing = TRUE)[1:20]
-I <- sort(I)
-
-# par(mfrow=c(1,1))
-# par(mar=c(3,3,3,3))
-# plot(mydata_temp[,1],type='o')
-# lines(y_hat_temp,col=3)
-# points(I,y_hat_temp[I],col='red',pch=20)
-# points(I,mydata_temp[I,1],col='red',pch=20)
-# segments(I,y_hat_temp[I],I,mydata_temp[I,1],col='red')
-
-cbind(y_hat_temp[I], mdata_test_full[I, ])
-
-
-#######################################################################################
-#######################################################################################
-#######################################################################################
-par(mfcol = c(3, 1))
-par(mar = c(1, 2, 1, 1) * 2)
-barplot(colMeans(phi[,, M]), horiz = T, col = 1:K, main = TeX(''), xlim = c(-.15, .15))
-box()
-mean(phi[,, M])
-
-I <- which(mdata_test_full[, 2] < .25)
-barplot(colMeans(phi[I, , M]), horiz = T, col = 1:K, main = TeX('x_1<.25'))
-box()
-mean(phi[I, , M])
-
-I <- which(mdata_test_full[, 2] < .75)
-barplot(colMeans(phi[I, , M]), horiz = T, col = 1:K, main = TeX('x_1>.75'))
-box()
-mean(phi[I, , M])
-
-
-# I=which(mdata_test_full[,12]==K & mdata_test_full[,2]>(mus[1]*K) & mdata_test_full[,3]>(mus[2]*K) )
-# barplot(colMeans(phi[I,,M]),horiz = T,col=1:K,main='Discriminated',xlim=c(-.8,.8))
-# box()
-#
-# I=which(mdata_test_full[,12]==K & mdata_test_full[,2]<(mus[1]*K) & mdata_test_full[,3]<(mus[2]*K) )
-# barplot(colMeans(phi[I,,M]),horiz = T,col=1:K,main='Not discriminated',xlim=c(-.8,.8))
-# box()
-#
-#
-# I=which(mdata_test_full[,3]<0.2)
-# barplot(colMeans(phi[I,,M]),horiz = T,col=1:K,main='x2<0.2',xlim=c(-0.1,0.1))
-# box()
-
-# I=which(mdata_test_full[,4]<0.2)
-# barplot(colMeans(phi[I,,M]),horiz = T,col=1:K,main='',xlim=c(-0.1,0.1))
-# box()
-
-# I=order(phi[,5,M],decreasing = FALSE)[1:5]
-# mdata_test_full[I,]
-# barplot(colMeans(phi[I,,M]),horiz = T,col=1:K,main='100 least disccriminated individual',xlim=c(-10,10))
-# box()
-
-set.seed(21)
-I1 <- which(mdata_test_full[, 1] < summary(mdata_test[, 1])[2])
-I2 <- which(mdata_test_full[, 1] > summary(mdata_test[, 1])[5])
-#I=c(sort(sample(I1[which(I1<500)],3)),sort(sample(I2[which(I2>500)],3)))
-#I=sample(1:N/4,7)
-# I=sample(which(mdata_test_full[,6]==3),5)
-#I=(N/4)/(8)*seq(from=1,to = 8,by = 2)
 I <- c(50, 150, 250, 350, 450)
-#I=c(50,150,250,350,450)-25
 
 par(mar = c(3, 3, 2, 2) * .7)
+
 nf <- layout(
   matrix(
     c(rep(1, length(I)), 2:(length(I) * 2 + 1 + 2), (length(I) * 3 + 2):(length(I) * 2 + 1)),
@@ -468,6 +389,9 @@ nf <- layout(
   respect = TRUE
 )
 layout.show(nf)
+
+y_hat_temp <- myPred(data_train = mydata_train, data_test = mydata_temp, method = mymethod)
+
 if (prediction_accuracy == FALSE) {
   i <- 1:dim(mydata_temp)[1]
   plot(1:dim(mydata_temp)[1], y_hat_temp[], xaxs = "i", ylab = 'y test', main = '', type = 'l', col = 0)
