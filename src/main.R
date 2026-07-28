@@ -2,16 +2,6 @@ require(nnet)
 require(FNN)
 require(randomForest)
 library(R.utils)
-library(party)
-library(tree)
-library(plotly)
-require(gridExtra)
-require(GGally)
-require(smooth)
-require(zoo)
-require(iml)
-require(rmutil)
-library(latex2exp)
 
 dnvgl <- c(
   rgb(153, 214, 240, maxColorValue = 255),
@@ -134,7 +124,7 @@ mmetric <- 'MSE'
 mmethod <- 'rf' # Which regression model to use
 
 prediction_accuracy <- TRUE
-global_classification <- FALSE
+global_classification <- TRUE
 
 K <- 5 # Number of clusters
 N <- 100 * K * 4 # Number of datapoints
@@ -246,10 +236,10 @@ if (global_classification) {
     plot(mdata_test[, j], col = col_array_train, ylab = colnames(mdata_full)[j])
     # Plot anomalies
     if (j == 2) {
-      points(200:249, mdata_test[200:249, 2], col = 6, pch = 16)
+      points(200:249, mdata_test[200:249, 2], col = 3, pch = 16)
     }
     if (j == 5) {
-      points(300:349, mdata_test[300:349, 5], col = 6, pch = 16)
+      points(300:349, mdata_test[300:349, 5], col = 3, pch = 16)
     }
   }
 
@@ -264,7 +254,7 @@ if (global_classification) {
   # Plot y, x1, x2, x3, x4
   for (j in include_mdata) {
     plot(mdata_train[, j], col = col_array_train, ylab = colnames(mdata_full)[j], ylim = c(-1, 1))
-    points(X_test_pred[, j], col = 6, pch = 16)
+    points(X_test_pred[, j], col = 'red')
   }
 
   mtext("Compare train data with AAKR predictions", side = 3, line = -1.5, outer = TRUE)
@@ -275,7 +265,7 @@ if (global_classification) {
   # Plot y, x1, x2, x3, x4
   for (j in include_mdata) {
     plot(mdata_test[, j], col = col_array_train, ylab = colnames(mdata_full)[j], ylim = c(-1, 1))
-    points(X_test_pred[, j], col = 6, pch = 16)
+    points(X_test_pred[, j], col = 'red')
   }
 
   mtext("Compare test data with AAKR predictions", side = 3, line = -1.5, outer = TRUE)
@@ -346,7 +336,7 @@ for (k in 1:K) {
       # v = accuracy
       # accuracy(D+) - accuracy(D-)
       if (cluster_position == 1) {
-        phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, mdata_test)
+        phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, mdata_test) - 0
       } else {
         phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, mdata_test) -
           fn_accuracy(actual_states, X_train = data_train_m, mdata_test)
@@ -384,272 +374,86 @@ for (k in 1:K) {
   }
 }
 
+if (global_classification) {
+  # Accuracy is global, so each row of phi is identical; use the first one.
+  global_phi <- phi[1, , ]
 
-selected_points <- c(50, 150, 250, 350, 450)
-full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
+  # Reset earlier multi-panel diagnostics so Fig. 7 fills the graphics device.
+  par(mfrow = c(1, 1), mar = c(5, 5.5, 3, 1))
+  plot(
+    seq_len(M),
+    global_phi[1, ],
+    type = "l",
+    col = 1,
+    lwd = 2,
+    xlim = c(1, M),
+    ylim = range(global_phi, na.rm = TRUE),
+    xlab = "Number of iterations (M)",
+    ylab = "Shapley values for explaining accuracy"
+  )
+  for (cluster_index in 2:K) {
+    lines(seq_len(M), global_phi[cluster_index, ], col = cluster_index, lwd = 2)
+  }
+  legend(
+    "topright",
+    title = "Clusters included",
+    legend = seq_len(K),
+    col = seq_len(K),
+    lty = 1,
+    lwd = 2
+  )
+} else {
+  selected_points <- c(50, 150, 250, 350, 450)
+  full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
 
-par(mar = c(2, 3, 2, 2))
-layout(
-  matrix(
-    c(
-      rep(1, length(selected_points)),
-      2:(length(selected_points) + 1),
-      (length(selected_points) + 2):(2 * length(selected_points) + 1)
+  par(mar = c(3, 3, 2, 2) * .7)
+  layout(
+    matrix(
+      c(
+        rep(1, length(selected_points)),
+        2:(length(selected_points) + 1),
+        (length(selected_points) + 2):(2 * length(selected_points) + 1)
+      ),
+      nrow = 3,
+      ncol = length(selected_points),
+      byrow = TRUE
     ),
-    nrow = 3,
-    ncol = length(selected_points),
-    byrow = TRUE
-  ),
-  respect = TRUE
-)
+    respect = TRUE
+  )
 
-if (!prediction_accuracy) {
-  plotted_value <- full_prediction
-  plot_title <- "Predictions"
-  y_label <- "Prediction"
-} else {
-  plotted_value <- (full_prediction - mdata_test[, 1])^2
-  plot_title <- "Squared Error"
-  y_label <- "Squared error"
-}
-
-# Top row: full-model prediction or squared error
-plot(seq_along(plotted_value), plotted_value, xaxs = "i", ylab = y_label, main = "", type = "l", col = 11, lwd = 3)
-for (point_index in selected_points) {
-  points(point_index, plotted_value[point_index], pch = 16, cex = 1.5, col = 9)
-  abline(v = point_index, lty = 2)
-}
-title(plot_title, line = 0)
-
-# Middle row: final local Shapley values for each selected test point.
-for (point_index in selected_points) {
-  barplot(phi[point_index, , M], horiz = TRUE, col = seq_len(K), main = "")
-  box()
-}
-
-# Bottom row: convergence of the Monte-Carlo Shapley estimates.
-for (point_index in selected_points) {
-  point_phi <- phi[point_index, , , drop = FALSE]
-  plot(NA, xlim = c(1, M), ylim = range(point_phi, na.rm = TRUE), xlab = "", ylab = "", axes = FALSE)
-  axis(1, labels = FALSE)
-  axis(2, labels = FALSE)
-  abline(h = 0, lty = 3)
-  for (cluster_index in seq_len(K)) {
-    lines(seq_len(M), phi[point_index, cluster_index, ], col = cluster_index)
-  }
-}
-
-
-# Efficiency
-
-PP <- 100
-P_empty <- array(NA, dim = c(N / 4, PP))
-P_N <- array(NA, dim = c(N / 4, PP))
-for (p in 1:PP) {
-  Z <- mdata_train
-  for (j in 2:(J + 1)) {
-    oo <- sample(x = seq(from = 1, to = dim(mdata_train)[1], by = 1), size = N / 4, replace = TRUE)
-    Z[, j] <- mdata_train[oo, j]
-  }
-  if (prediction_accuracy == FALSE) {
-    P_empty[, p] <- 0 #(myPred(data_train = Z,data_test = mydata_test,method = mymethod))
-    P_N[, p] <- (fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod))
+  if (!prediction_accuracy) {
+    plotted_value <- full_prediction
+    plot_title <- "Predictions"
+    y_label <- "Prediction"
   } else {
-    P_empty[, p] <- 0 #(mydata_test[,1]^2)
-    P_N[, p] <- ((mdata_test[, 1] -
-      fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod))^2 -
-      mdata_test[, 1]^2)
+    plotted_value <- (full_prediction - mdata_test[, 1])^2
+    plot_title <- "Squared Error"
+    y_label <- "Squared error"
   }
-}
 
-par(mfrow = c(3, 1))
-par(mar = c(2, 2, 2, 2))
-plot(P_empty[, p], col = 0, ylim = c(-1.3, 1.8), main = TeX('$v(N)  =  E(f_N)  -  E(f_X)$'))
-for (p in 1:PP) {
-  lines(P_empty[, p], col = 10, lwd = 2)
-  lines(P_N[, p], col = 9, lwd = 1)
-}
-#lines(rowMeans(P_N),col=8,lwd=1,lty=1)
-#lines(rowMeans(P_empty),col=9,lwd=2,lty=3)
-legend("topright", legend = c(TeX('f_N'), TeX('$f_X$')), col = c(9, 10), lty = c(1, 1), cex = 0.8)
-plot(phi[, 1, M], col = 0, ylim = c(-1.3, 1.8), main = TeX('$\\varphi$'))
-for (k in 1:K) {
-  lines(phi[, k, M], col = k, lty = 1)
-}
-lines(apply(X = phi[,, M], MARGIN = 1, FUN = 'sum'), col = 11, lwd = 2)
-legend(
-  "topright",
-  legend = c(
-    TeX('$\\varphi_1$        '),
-    (TeX('$\\varphi_2$')),
-    TeX('$\\varphi_3   $ '),
-    TeX('$\\varphi_4$'),
-    TeX('$\\varphi_5$'),
-    c(TeX('    $  \\sum   \\varphi_k    $   '), '        ')
-  ),
-  col = c(1:5, 11),
-  lty = c(3, 3, 3, 3, 3, 1, 0),
-  lwd = c(1, 1, 1, 1, 1, 2)
-)
-plot(rowMeans(P_N) - rowMeans(P_empty), type = 'l', lwd = 1, col = 9, main = TeX('$\\sum\\varphi_k$ =v(N)'))
-for (p in 1:PP) {
-  lines(P_N[, p], col = 9, lwd = 1)
-}
-lines(apply(X = phi[,, M], MARGIN = 1, FUN = 'sum'), col = 11, lwd = 2, type = 'l', lty = 1)
-legend(
-  "topright",
-  legend = c((TeX('$v(N)$')), TeX('$\\sum\\varphi_k$        ')),
-  col = c(9, 11),
-  lty = c(1, 1),
-  lwd = c(1, 2)
-)
-
-
-y_hat_test <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
-#
-# # sum phi
-# colMeans(phi[,,M])
-# sum(colMeans(phi[,,M]))
-#
-# sum(colMeans(phi[,,M]))/sum(abs(colMeans(phi[,,M])))*100
-#
-
-# SYMMETRY
-
-par(mfrow = c(1, 1))
-
-plot(phi[, 4, M], type = 'l', col = 4, lwd = 2)
-lines(phi[, 5, M], col = 5, lty = 3, lwd = 2)
-legend(
-  "topleft",
-  legend = c(TeX('$\\varphi_4$'), TeX('$\\varphi_5$'), '        '),
-  col = 4:5,
-  lty = c(1, 3, 0, 3, 3, 1, 0),
-  lwd = c(2, 2, 1, 1, 1, 2)
-)
-
-#plot((phi[,4,M]-phi[,5,M])/(max(phi[,4:5,M])-min(phi[,4:5,M])))
-
-par(mfrow = c(5, 1))
-plot(phi[, 1, M], col = 1, type = 'o', ylim = c(min(phi[,, M]), max(phi[,, M])))
-abline(h = 0)
-for (k in 2:K) {
-  points(phi[, k, M], col = k, type = 'o')
-}
-if (prediction_accuracy == TRUE) {
-  plot((mdata_test[, 1] - y_hat_test)^2, type = 'o')
-} else {
-  plot((mdata_test[, 1]), type = 'o')
-  lines(y_hat_test, col = K + 1, type = 'o')
-}
-#lines(y_hat_test,col='red')
-
-plot(mdata_train[, 1], col = mdata_train_full[, 6], ylim = c(-3, 3), type = 'o')
-plot(mdata_train[, 2], col = mdata_train_full[, 6], ylim = c(-3, 3), type = 'o')
-plot(mdata_train[, 3], col = mdata_train_full[, 6], ylim = c(-3, 3), type = 'o')
-
-############
-par(mfrow = c(2, 1))
-plot(phi[, 1, M], col = 1, type = 'l', ylim = c(min(phi[,, M]), max(phi[,, M])))
-abline(h = 0)
-for (k in 2:K) {
-  points(phi[, k, M], col = k, type = 'l')
-}
-
-if (prediction_accuracy == TRUE) {
-  plot((mdata_test[, 1] - phi_pred_p[, 1, 1])^2, type = 'l', lwd = 0.4, col = 0, lty = 1)
-  for (k in 1:K) {
-    for (m in round(seq(from = 1, to = M, length.out = 5))) {
-      lines((mdata_test[, 1] - phi_pred_p[, k, m])^2, col = k, pch = '.', lty = 1)
-    }
-    # for( k in 1:K){
-    #   lines((mydata_test[,1]-myPred(data_train = mydata_train_k[,,k],data_test=mydata_test,method=mymethod))^2,col=k,lty=1)
-    # }
+  # Top row: full-model prediction or squared error
+  plot(seq_along(plotted_value), plotted_value, xaxs = "i", ylab = y_label, main = "", type = "l", col = 11, lwd = 3)
+  for (point_index in selected_points) {
+    points(point_index, plotted_value[point_index], pch = 16, cex = 1.5, col = 9)
+    abline(v = point_index, lty = 2)
   }
-  lines((mdata_test[, 1] - phi_pred_p[, 1, M])^2, type = 'l', col = 'red', lwd = 2)
-  lines(mdata_test[, 1] - mdata_test[, 1], col = 1, lwd = 2)
-} else {
-  plot(phi_pred_p[, 1, 1], type = 'l', lwd = 0.4, col = 0, lty = 1, ylim = c(min(phi_pred_p), max(phi_pred_p)))
-  for (k in 1:K) {
-    for (m in round(seq(from = 1, to = M, length.out = 20))) {
-      lines(phi_pred_p[, k, m], col = k, pch = '.', lty = 1)
-    }
-    Sys.sleep(2)
-  }
-  lines(phi_pred_p[, 1, M], type = 'l', col = 'red', lwd = 2)
-  lines(mdata_test[, 1], col = 1, lwd = 2)
-}
-# for( k in 1:K){
-#   lines(myPred(data_train = mydata_train_k[,,k],data_test=mydata_test,method=mymethod),col=k,lty=3)
-# }
+  title(plot_title, line = 0)
 
-par(mar = c(2, 1, 2, 2) * .5)
-par(mfrow = c(2, 1))
-if (prediction_accuracy == FALSE) {
-  plot(1:dim(mdata_temp)[1], y_hat_temp[], xaxs = "i", ylab = 'y test', main = '', type = 'l', col = 0)
-  for (k in 1:K) {
-    for (m in round(seq(from = 1, to = M, length.out = M))) {
-      lines(phi_pred_p[, k, m], col = alpha(k, 0.1), pch = '.', lty = 1)
-    }
+  # Middle row: final local Shapley values for each selected test point.
+  for (point_index in selected_points) {
+    barplot(phi[point_index, , M], horiz = TRUE, col = seq_len(K), main = "")
+    box()
   }
-  lines(1:dim(mdata_temp)[1], y_hat_temp, xaxs = "i", col = 9, ylab = 'y test', main = '', lwd = 3)
-  #abline(h=0,lty=3,lwd=0.5)
-  title('Predictions', 2)
-  lines(1:dim(mdata_temp)[1], mdata_temp[, 1], xaxs = "i", col = 11, ylab = 'y test', main = '', lwd = 3)
 
-  plot(phi[, k, M], col = 0)
-  for (k in 1:K) {
-    for (m in 1:M) {
-      lines(phi[, k, m], col = alpha(k, m / M))
+  # Bottom row: convergence of the Monte-Carlo Shapley estimates.
+  for (point_index in selected_points) {
+    point_phi <- phi[point_index, , , drop = FALSE]
+    plot(NA, xlim = c(1, M), ylim = range(point_phi, na.rm = TRUE), xlab = "", ylab = "", axes = FALSE)
+    axis(1, labels = FALSE)
+    axis(2, labels = FALSE)
+    abline(h = 0, lty = 3)
+    for (cluster_index in seq_len(K)) {
+      lines(seq_len(M), phi[point_index, cluster_index, ], col = cluster_index)
     }
   }
 }
-
-
-# par(mfrow=c(1,1))
-# par(mar=c(3,3,3,3))
-# plot(mydata_test[,1],col=0)
-# for (m in 1:M){
-#   for (k in 1:K){
-#     lines((phi_pred_p[,k,m]),col=alpha(k, 0.1))
-#   }
-# }
-
-MSE_lc <- array(NA, dim = c(M, K))
-for (m in 1:M) {
-  for (k in 1:K) {
-    MSE_lc[m, k] <- mean((phi_pred_p[, k, m]))
-  }
-}
-
-par(mfrow = c(1, 1))
-par(mar = c(2, 2, 1, 1) * 2)
-plot(
-  0:K,
-  col = 0,
-  ylim = c(min(MSE_lc), max(MSE_lc)),
-  xlim = c(0.5, K),
-  xlab = 'Number of subsets in the training data',
-  ylab = 'MSE'
-)
-for (k in 1:K) {
-  for (m in 150:250) {
-    #points(c(0,phi_pred_idx[m,k]),c(empty,MSE_lc[m,k]),col=alpha(k, 0.05),pch='-',cex=8)
-    points(c(phi_pred_idx[m, k]) + runif(1, -.2, .2), c(MSE_lc[m, k]), col = alpha(k, 1), pch = '.', cex = 8)
-  }
-}
-
-MLC <- array(NA, dim = c(K, K))
-empty <- mean(mdata_test[, 1]^2)
-for (k in 1:K) {
-  # look at each fold
-  for (kk in 1:K) {
-    # how many in phi_pred_idx
-    MLC[kk, k] <- mean(MSE_lc[which(phi_pred_idx[, k] == kk), k])
-  }
-}
-for (k in 1:K) {
-  #lines(0:K,c(empty,MLC[,k]),col=k,type='o',pch=15,lwd=2)
-  lines(1:K, c(MLC[, k]), col = k, type = 'o', pch = 15, lwd = 2)
-}
-legend("topright", legend = c(1:5), col = c(1:5, 11), lty = 1, lwd = c(1, 1, 1, 1, 1, 2), title = 'Subset included')
