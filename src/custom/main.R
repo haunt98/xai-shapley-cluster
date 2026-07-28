@@ -425,20 +425,17 @@ if (global_classification) {
   if (!prediction_accuracy) {
     plotted_value <- full_prediction
     plot_title <- "Predictions"
-    y_label <- "Prediction"
   } else {
     plotted_value <- (full_prediction - mdata_test[, 1])^2
     plot_title <- "Squared Error"
-    y_label <- "Squared error"
   }
 
   # Top: full prediction or squared error
-  plot(seq_along(plotted_value), plotted_value, xaxs = "i", ylab = y_label, main = "", type = "l", col = 11, lwd = 3)
+  plot(seq_along(plotted_value), plotted_value, xaxs = "i", main = "", type = "l", col = 11, lwd = 3)
   for (point_index in selected_points) {
     points(point_index, plotted_value[point_index], pch = 16, cex = 1.5, col = 9)
     abline(v = point_index, lty = 2)
   }
-  title(plot_title, line = 0)
 
   # Middle: local Shapley values for each selected point
   for (point_index in selected_points) {
@@ -458,4 +455,6 @@ if (global_classification) {
     }
     box()
   }
+
+  mtext(plot_title, side = 3, line = -11.5, outer = TRUE)
 }
