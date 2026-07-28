@@ -375,64 +375,6 @@ for (k in 1:K) {
 }
 
 
-X_test_pred <- AAKR(X_test = mdata_test, X_train = mdata_train)
-### AAKR PLOT
-par(mar = c(2, 5, 1, 1))
-par(mfrow = c(length(include_mdata), 1))
-for (j in include_mdata) {
-  plot(mdata_test[, j], col = col_array_train, ylab = colnames(mdata_full)[j], ylim = c(-1, 1))
-  points(X_test_pred[, j], col = 'red')
-}
-
-
-X_test_pred <- AAKR(X_test = mdata_test, X_train = data_train_m)
-my_res <- (X_test_pred - mdata_test)
-my_res_max <- apply(abs(my_res), 1, sum)
-predicted_states <- abs(my_res_max) > .5
-
-TP <- (actual_states == 1 & predicted_states == 1)
-FP <- (actual_states == 0 & predicted_states == 1)
-FN <- (actual_states == 1 & predicted_states == 0)
-TN <- (actual_states == 0 & predicted_states == 0)
-
-plot(TP)
-plot(TN)
-plot(FN)
-plot(FP)
-
-
-# #######################################################################################
-# #######################################################################################
-# #######################################################################################
-# # SHAPLEY
-#
-# mydata_train_df=data.frame(mydata_train)
-# mydata_temp_df=data.frame(mydata_test)
-# colnames(mydata_train_df)[1]='y'
-# mylm = lm(y ~ ., data = mydata_train_df)
-# # df=data.frame(mydata)
-# X = mydata_train_df[which(names(mydata_train_df) != "y")]
-#
-# I=sample(1:N/4,50)
-# par(mfrow=c(1,length(I)))
-# par(mar=c(1,1,1,1)*4)
-# psi=array(NA,dim=c(J,length(I)))
-# ii=0
-# for (i in I){
-#   ii=ii+1
-#   predictor = Predictor$new(mylm, data = X, y = mydata_train_df$y)
-#   shapley = Shapley$new(predictor, x.interest = mydata_temp_df[i,2:dim(mydata_temp_df)[2]],sample.size=100)
-#   psi[,ii]=shapley$results$phi
-#   #barplot(shapley$results$phi,horiz = TRUE)
-#   shapley$plot()
-# }
-# rowMeans(psi)
-
-#######################################################################################
-#######################################################################################
-#######################################################################################
-### EVAL NEW
-
 #test
 mydata_temp <- mdata_test
 fl_temp <- K_test
