@@ -124,7 +124,10 @@ mmetric <- 'MSE'
 mmethod <- 'rf' # Which regression model to use
 
 prediction_accuracy <- TRUE
+log_info("prediction_accuracy: {prediction_accuracy}")
+
 global_classification <- FALSE
+log_info("global_classification: {global_classification}")
 
 K <- 5 # Number of clusters
 N <- 100 * K * 4 # Number of datapoints
@@ -178,17 +181,11 @@ mdata_eval <- mdata[(floor(N_train) + floor(N_test) + 1):(floor(N)), ]
 N_train <- dim(mdata_train)[1]
 N_test <- dim(mdata_test)[1]
 N_eval <- dim(mdata_eval)[1]
-log_info("N_train: {N_train}")
-log_info("N_test: {N_test}")
-log_info("N_eval: {N_eval}")
 
 # Per cluster
 K_train <- floor(N_train / K)
 K_test <- floor(N_test / K)
 K_eval <- floor(N_eval / K)
-log_info("K_train: {K_train}")
-log_info("K_test: {K_test}")
-log_info("K_eval: {K_eval}")
 
 # dim(mdata)[2] is y, x1, x2, x3, x4
 # J is 4 - the number of features (x1, x2, x3, x4)
@@ -435,7 +432,7 @@ if (global_classification) {
     y_label <- "Squared error"
   }
 
-  # Top row: full-model prediction or squared error
+  # Top: full prediction or squared error
   plot(seq_along(plotted_value), plotted_value, xaxs = "i", ylab = y_label, main = "", type = "l", col = 11, lwd = 3)
   for (point_index in selected_points) {
     points(point_index, plotted_value[point_index], pch = 16, cex = 1.5, col = 9)
@@ -443,21 +440,22 @@ if (global_classification) {
   }
   title(plot_title, line = 0)
 
-  # Middle row: final local Shapley values for each selected test point.
+  # Middle: local Shapley values for each selected point
   for (point_index in selected_points) {
     barplot(phi[point_index, , M], horiz = TRUE, col = seq_len(K), main = "")
     box()
   }
 
-  # Bottom row: convergence of the Monte-Carlo Shapley estimates.
+  # Bottom: convergence of Shapley values for each selected point
   for (point_index in selected_points) {
     point_phi <- phi[point_index, , , drop = FALSE]
     plot(NA, xlim = c(1, M), ylim = range(point_phi, na.rm = TRUE), xlab = "", ylab = "", axes = FALSE)
     axis(1, labels = FALSE)
-    axis(2, labels = FALSE)
+    axis(2)
     abline(h = 0, lty = 3)
     for (cluster_index in seq_len(K)) {
       lines(seq_len(M), phi[point_index, cluster_index, ], col = cluster_index)
     }
+    box()
   }
 }
