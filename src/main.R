@@ -1,25 +1,38 @@
-# https://packages.tesselle.org/khroma/articles/tol.html
-library(khroma)
+library(R.utils)
+require(FNN)
+require(nnet)
+require(randomForest)
 
-vibrant <- color("vibrant")
-palette(vibrant(7))
+dnvgl <- c(
+  rgb(153, 214, 240, maxColorValue = 255),
+  rgb(0, 53, 145, maxColorValue = 255),
+  rgb(63, 156, 53, maxColorValue = 255),
+  rgb(15, 32, 75, maxColorValue = 255),
+  rgb(0, 159, 218, maxColorValue = 255),
+  rgb(254, 203, 0, maxColorValue = 255),
+  rgb(233, 131, 0, maxColorValue = 255),
+  rgb(110, 80, 145, maxColorValue = 255),
+  rgb(196, 38, 46, maxColorValue = 255),
+  rgb(152, 143, 134, maxColorValue = 255),
+  rgb(0, 0, 0, maxColorValue = 255)
+)
+dnvgl <- rep(dnvgl, 5)
+palette(dnvgl)
+
+library(logger)
+log_info("XAI Shapley Cluster")
 
 # TODO: Read paper
-##### AAKR
+# Auto Associative Kernel Regression
 AAKR <- function(X_test, X_train, h = .2, d2_skip = 0, y_importance = 0) {
-  #y is the last column
-  #print(h)
-  #print(y_importance)
-  #X_test=t(as.matrix(X_test))
-  #print(X_test)
   K <- dim(X_train)[1]
   N <- dim(X_train)[2]
   M <- dim(X_test)[1]
   d2 <- matrix(NA, K, N)
   w <- array(NA, K)
   X_pred_n <- matrix(NA, M, N)
-  X_test_n <- X_test #normalize(X_test,X_train)  ## IF WE ASSUME THE INPUT IS ALREADY NORMALIZED
-  X_train_n <- X_train #normalize(X_train,X_train)
+  X_test_n <- X_test # normalize(X_test, X_train)  ## IF WE ASSUME THE INPUT IS ALREADY NORMALIZED
+  X_train_n <- X_train # normalize(X_train, X_train)
   for (m in 1:M) {
     for (k in 1:K) {
       d2[k, ] <- (X_test_n[m, ] - X_train_n[k, ])^2
@@ -31,7 +44,6 @@ AAKR <- function(X_test, X_train, h = .2, d2_skip = 0, y_importance = 0) {
     }
     X_pred_n[m, ] <- (w %*% X_train_n) / sum(w)
   }
-  #X_test_pred=denormalize(X_pred_n,X_train)
   X_test_pred <- X_pred_n
   return(X_test_pred)
 }
@@ -50,7 +62,7 @@ normalize <- function(X, X_base) {
 }
 
 
-myPred <- function(data_train, data_test, method, ntree = 100, maxnodes = 30) {
+fn_prediction <- function(data_train, data_test, method, ntree = 100, maxnodes = 30) {
   if (method == 'lm') {
     fit <- lm(formula = y ~ x, data = data.frame(y = data_train[, 1], x = I(as.matrix(data_train[, -1]))))
     pred <- predict.lm(fit, newdata = data.frame(x = I(as.matrix(data_test[, -1]))))
@@ -87,7 +99,7 @@ myPred <- function(data_train, data_test, method, ntree = 100, maxnodes = 30) {
 }
 
 
-myPE <- function(y, y_hat, metric) {
+fn_prediction_error <- function(y, y_hat, metric) {
   if (metric == 'RMSE') {
     PE <- sqrt(mean((y - y_hat)^2, na.rm = T))
   }
@@ -106,254 +118,163 @@ myPE <- function(y, y_hat, metric) {
   return(PE)
 }
 
-##################
-##################
-##################
 
-require(nnet)
-require(FNN)
-require(randomForest)
-library(R.utils)
-library(party)
-library(tree)
-library(plotly)
-require(gridExtra)
-#require(ggplot2)
-require(GGally)
-require(smooth)
-require(zoo)
-require(iml)
-require(rmutil)
-library(latex2exp)
+# Init
+mmetric <- 'MSE'
+mmethod <- 'rf' # Which regression model to use
 
-##########################################################
-##########################################################
-##########################################################
-##########################################################
-##########################################################
-# SET UP
+prediction_accuracy <- TRUE
+global_classification <- FALSE
 
-mymetric <- 'MSE'
-K <- 5 # number of clusters
-mymethod <- 'rf' # which regression model to use
-N <- 100 * K * 4 # number of datapoints
-
-PA <- TRUE
-global_classification <- TRUE
-mySampling <- 'out' #'shuffle' # 'continious','discrete','shuffle'
+K <- 5 # Number of clusters
+N <- 100 * K * 4 # Number of datapoints
 
 N_train <- N / 4
 N_test <- N / 4
 N_eval <- N / 2
 
-par(mfrow = c(4, 1))
-par(mar = c(1, 1, 1, 1) * 2)
-
 set.seed(2)
 
-# xS=sample(x = 1:K,size = N,replace = TRUE)
-# xS=rep(floor(seq(1,K+1,length.out = N/4+1))[1:(N/4)],4)
-#
-# x1=array(NA,N) #
-# x2=array(NA,N) #
-# x3=array(NA,N) #
-# x4=array(NA,N) #
-# y=array(NA,N)
-#
-# x1=sin(seq(from=0,to=30*pi,length.out=N))
-# x2=sin(seq(from=0,to=20*pi,length.out=N))
-# x3=sin(seq(from=0,to=80*pi,length.out=N))
-# x4=sin(seq(from=0,to=5*pi,length.out=N))
-#
-# # x1=z1
-# # x2=z2
-# # x3=z3
-# #
-# for (i in 1:N){
-#   if (xS[i]==2){
-#     y[i]=1.5*(x1[i]*x2[i]+x3[i]*x4[i])
-#   }else if (xS[i]==3){
-#     y[i]=0.75*(x1[i]*x2[i]+x3[i]*x4[i])
-#   }else if (xS[i]==1){
-#     y[i]=(x1[i]*x2[i]+x3[i]*x4[i])
-#   } else{
-#     y[i]=(x1[i]*x2[i]-x3[i]*x4[i])
-#   }
-# }
 
-############## data generation for the example
-
+# Data generation
 x1 <- sin(seq(1, 2 * 2.4 * pi, length.out = N)) + rnorm(N, 0, 0.1)
 x2 <- sin(seq(1, 2 * 20.45 * pi, length.out = N)) + rnorm(N, 0, 0.1)
 x3 <- sin(seq(1, 2 * 4.21 * pi, length.out = N)) + rnorm(N, 0, 0.1)
 x4 <- sin(seq(1, 2 * 8.15 * pi, length.out = N)) + rnorm(N, 0, 0.1)
 
+# Assign cluster labels to each datapoint
+# N / 4 is number of datapoints per x1 -> x4
+# [1, 1, ..., 5, 5, 1, 1, ..., 5, 5, 1, 1, ..., 5, 5, 1, 1, ..., 5, 5]
 xS <- rep(floor(seq(1, K + 1, length.out = N / 4 + 1))[1:(N / 4)], 4)
+# print(xS)
 
 y <- x1 * x2 + x3 * x4 + rnorm(N, 0, 0.1)
 
-#
-# for (i in 1:N){
-#   if (xS[i]==1){
-#     y[i]=1*y[i]
-#   }else if (xS[i]==2){
-#     y[i]=1.25*y[i]
-#   }else if (xS[i]==3){
-#     y[i]=0.75*y[i]
-#   } else{
-#     y[i]=y[i]
-#   }
-# }
+mdata_full <- cbind(y, x1, x2, x3, x4, xS)
+include_mdata <- c(1, 2, 3, 4, 5) # y, x1, x2, x3, x4
+index_mdata_xS <- 6 # xS
 
-mydata_full <- cbind(y, x1, x2, x3, x4, xS)
-includeMyData <- c(1, 2, 3, 4, 5)
+# Copy data from cluster 4 to cluster 5
+mdata_full[which(xS == 5), include_mdata] <- mdata_full[which(xS == 4), include_mdata]
 
+# Prepare training data
+mdata_train_full <- mdata_full[1:(floor(N_train)), ]
+mdata_test_full <- mdata_full[(floor(N_train) + 1):(floor(N_train) + floor(N_test)), ]
+mdata_eval_full <- mdata_full[(floor(N_train) + floor(N_test) + 1):(floor(N)), ]
 
-# # mydata_full=cbind(y,x1,x2,x3,x4,x5,x6,x7,xS)
-# # includeMyData=c(1,2,3,4,5)
-# mydata_full=cbind(y,x1,x2,x3,x4,xS)
-# includeMyData=c(1,2,3,4,5)
-myS <- 6
+# Sort training data by cluster labels
+segment_rule <- order((mdata_train_full[, index_mdata_xS]))
+mdata_train_full <- mdata_train_full[segment_rule, ]
 
-mydata_full[which(xS == 5), includeMyData] <- mydata_full[which(xS == 4), includeMyData]
+# mdata is mdata_full without the cluster labels (xS)
+mdata <- rbind(mdata_train_full, mdata_test_full, mdata_eval_full)
+mdata <- mdata[, include_mdata]
 
+mdata_train <- mdata[1:(floor(N_train)), ]
+mdata_test <- mdata[(floor(N_train) + 1):(floor(N_train) + floor(N_test)), ]
+mdata_eval <- mdata[(floor(N_train) + floor(N_test) + 1):(floor(N)), ]
 
-#######################################################################################
-#######################################################################################
-#######################################################################################
-# SEGMENT TRAINING DATA
-mydata_train_full <- mydata_full[1:(floor(N / 4)), ]
-mydata_test_full <- mydata_full[(floor(N / 4) + 1):(floor(N / 2)), ]
-mydata_eval_full <- mydata_full[(floor(2 * N / 4) + 1):(floor(N)), ]
+# Ensure matching row counts
+N_train <- dim(mdata_train)[1]
+N_test <- dim(mdata_test)[1]
+N_eval <- dim(mdata_eval)[1]
+log_info("N_train: {N_train}")
+log_info("N_test: {N_test}")
+log_info("N_eval: {N_eval}")
 
-segment_rule <- order(((mydata_train_full[, 2] > 50) | (mydata_train_full[, 3] > 50)))
-#segment_rule=order(mydata_train_full[,2]^2)
-segment_rule <- order((mydata_train_full[, myS]))
-#segment_rule=order(xS)
+# Per cluster
+K_train <- floor(N_train / K)
+K_test <- floor(N_test / K)
+K_eval <- floor(N_eval / K)
+log_info("K_train: {K_train}")
+log_info("K_test: {K_test}")
+log_info("K_eval: {K_eval}")
 
-#segment_rule=1:(N/4)
+# dim(mdata)[2] is y, x1, x2, x3, x4
+# J is 4 - the number of features (x1, x2, x3, x4)
+J <- dim(mdata)[2] - 1
 
-mydata_train_full <- mydata_train_full[segment_rule, ]
-#mydata_train_full=mydata_train_full[order(mydata_train_full[,6]),]
-
-#######################################################################################
-#######################################################################################
-#######################################################################################
-# SPLIT TRAIN TEST EVAL
-mydata <- rbind(mydata_train_full, mydata_test_full, mydata_eval_full)
-mydata <- mydata[, includeMyData]
-
-mydata_train <- mydata[1:(floor(N / 4)), ]
-mydata_test <- mydata[(floor(N / 4) + 1):(floor(N / 2)), ]
-mydata_eval <- mydata[(floor(2 * N / 4) + 1):(floor(N)), ]
-
-N_train <- dim(mydata_train)[1]
-N_test <- dim(mydata_test)[1]
-N_eval <- dim(mydata_eval)[1]
-
-fl_train <- floor(N_train / K)
-fl_test <- floor(N_test / K)
-fl_eval <- floor(N_eval / K)
-
-J <- dim(mydata)[2] - 1
-
-
-# #######
-# mydata_test_full=mydata_train_full
-# mydata_test=mydata_train
-
-#######################################################################################
-#######################################################################################
-#######################################################################################
-
-#PLOT DATA
-colarray_train <- array(NA, N_train)
+# Plot train data
+# Assign colors to each cluster for training data
+# [ 1, 1, ..., 1, 2, 2, ..., 2, 3, 3, ..., 3, 4, 4, ..., 4, 5, 5, ..., 5]
+col_array_train <- array(NA, N_train)
 for (k in 1:K) {
-  colarray_train[((k - 1) * fl_train + 1):(fl_train * k)] <- rep(k, fl_train)
+  col_array_train[((k - 1) * K_train + 1):(K_train * k)] <- rep(k, K_train)
 }
-colarray_test <- array(11, N_test)
-colarray_eval <- array(12, N_eval)
+# print(col_array_train)
 
-par(mfrow = c(1, 1))
-pairs(mydata_train, col = colarray_train)
+par(mar = c(2, 5, 2, 2)) # margin bottom, left, top, right
+par(mfrow = c(length(include_mdata), 1))
 
-par(mar = c(2, 5, 1, 1))
-par(mfrow = c(length(includeMyData), 1))
-for (j in includeMyData) {
-  plot(mydata_train[, j], col = colarray_train, ylab = colnames(mydata_full)[j])
+# Plot y, x1, x2, x3, x4
+for (j in include_mdata) {
+  plot(mdata_train[, j], col = col_array_train, ylab = colnames(mdata_full)[j])
 }
 
-
-# par(mar=c(2,4,2,1)*1)
-# par(mfcol=c(dim(mydata_train_full)[2],2))
-# j=1
-# plot(mydata_train_full[,j],col=colarray_train,ylim=c(min(mydata_train[,j]),max(mydata_train_full[,j])),ylab=colnames(mydata_full)[j],main='Training data',pch=20)
-# for(j in 2:dim(mydata_train_full)[2]){
-#   plot(mydata_train_full[,j],col=colarray_train,ylim=c(min(mydata_train_full[,j]),max(mydata_train_full[,j])),ylab=colnames(mydata_full)[j],main='',pch=20)
-# }
-# j=1
-# plot(mydata_test_full[,j],col=colarray_test,ylim=c(min(mydata_train_full[,j]),max(mydata_train_full[,j])),ylab=colnames(mydata_full)[j],main='Test data',pch=20)
-# for(j in 2:dim(mydata_train_full)[2]){
-#   plot(mydata_test_full[,j],col=colarray_test,ylim=c(min(mydata_train_full[,j]),max(mydata_train_full[,j])),ylab=colnames(mydata_full)[j],pch=20)
-# }
-
-# j=1
-# plot(mydata_eval[,j],col=colarray_eval,ylim=c(min(mydata_train[,j]),max(mydata_train[,j])),main='')
-# for(j in 2:dim(mydata_eval)[2]){
-#   plot(mydata_eval[,j],col=colarray_eval,ylim=c(min(mydata_train[,j]),max(mydata_train[,j])))
-# }
-#
+mtext("Train data", side = 3, line = -1.5, outer = TRUE)
 
 set.seed(21)
-mydata_test <- mydata_train
-mydata_test_full <- mydata_test_full
 
+# Set test same as train
+mdata_test <- mdata_train
 
-#### INSTERT ANAOMALIES
+# Insert anomalies into the test data
+actual_states <- rep(0, dim(mdata_test)[1])
 
-actual_states <- rep(0, dim(mydata_test)[1])
-actual_states[200:249] <- rep(1, 50)
-actual_states[400:449] <- rep(1, 50)
-mydata_test[200:249, 2] <- mydata_test[200:249, 2] - rnorm(50, .5, .1)
+if (global_classification) {
+  actual_states[200:249] <- rep(1, 50)
+  actual_states[300:349] <- rep(1, 50)
+  mdata_test[200:249, 2] <- mdata_test[200:249, 2] + rnorm(50, -0.5, 0.5) # x1
+  mdata_test[300:349, 5] <- mdata_test[300:349, 5] + rnorm(50, -0.5, 0.5) # x4
 
-#mydata_test[400:449,5]=mydata_test[400:449,5]-rnorm(50,.5,.1)
+  # Plot test data with anomalies
+  par(mar = c(2, 5, 2, 2))
+  par(mfrow = c(length(include_mdata), 1))
 
-par(mar = c(2, 5, 1, 1))
-par(mfrow = c(length(includeMyData), 1))
-for (j in includeMyData) {
-  plot(mydata_test[, j], col = colarray_train, ylab = colnames(mydata_full)[j])
-  if (j == 2) {
-    points(200:249, mydata_test[200:249, 2], col = 3, pch = 16)
+  # Plot y, x1, x2, x3, x4
+  for (j in include_mdata) {
+    plot(mdata_test[, j], col = col_array_train, ylab = colnames(mdata_full)[j])
+    # Plot anomalies
+    if (j == 2) {
+      points(200:249, mdata_test[200:249, 2], col = 3, pch = 16)
+    }
+    if (j == 5) {
+      points(300:349, mdata_test[300:349, 5], col = 3, pch = 16)
+    }
   }
-  # if(j==5){
-  #   points(400:449,mydata_test[400:449,5],col=5,pch=16)
-  # }
+
+  mtext("Test data with anomalies", side = 3, line = -1.5, outer = TRUE)
+
+  X_test_pred <- AAKR(X_test = mdata_test, X_train = mdata_train)
+
+  # Plot AAKR
+  par(mar = c(2, 5, 2, 2))
+  par(mfrow = c(length(include_mdata), 1))
+
+  # Plot y, x1, x2, x3, x4
+  for (j in include_mdata) {
+    plot(mdata_train[, j], col = col_array_train, ylab = colnames(mdata_full)[j], ylim = c(-1, 1))
+    points(X_test_pred[, j], col = 'red')
+  }
+
+  mtext("Compare train data with AAKR predictions", side = 3, line = -1.5, outer = TRUE)
+
+  par(mar = c(2, 5, 2, 2))
+  par(mfrow = c(length(include_mdata), 1))
+
+  # Plot y, x1, x2, x3, x4
+  for (j in include_mdata) {
+    plot(mdata_test[, j], col = col_array_train, ylab = colnames(mdata_full)[j], ylim = c(-1, 1))
+    points(X_test_pred[, j], col = 'red')
+  }
+
+  mtext("Compare test data with AAKR predictions", side = 3, line = -1.5, outer = TRUE)
 }
 
 
-X_test_pred <- AAKR(X_test = mydata_test, X_train = mydata_train)
-### AAKR PLOT
-par(mar = c(2, 5, 1, 1))
-par(mfrow = c(length(includeMyData), 1))
-for (j in includeMyData) {
-  plot(mydata_train[, j], col = colarray_train, ylab = colnames(mydata_full)[j], ylim = c(-1, 1))
-  points(X_test_pred[, j], col = 'red')
-}
-
-
-X_test_pred <- AAKR(X_test = mydata_test, X_train = mydata_train)
-### AAKR PLOT
-par(mar = c(2, 5, 1, 1))
-par(mfrow = c(length(includeMyData), 1))
-for (j in includeMyData) {
-  plot(mydata_test[, j], col = colarray_train, ylab = colnames(mydata_full)[j], ylim = c(-1, 1))
-  points(X_test_pred[, j], col = 'red')
-}
-
-
-acc <- function(true_states, mydata_train, mydata_test) {
-  X_test_pred <- AAKR(X_test = mydata_test, X_train = mydata_train)
-  my_res <- (X_test_pred - mydata_test)
+fn_accuracy <- function(actual_states, X_train, X_test) {
+  X_test_pred <- AAKR(X_test = X_test, X_train = X_train)
+  my_res <- (X_test_pred - X_test)
   my_res_max <- apply(abs(my_res), 1, sum)
   predicted_states <- abs(my_res_max) > .5
 
@@ -366,582 +287,177 @@ acc <- function(true_states, mydata_train, mydata_test) {
   return(acc)
 }
 
-
-#abs((mydata_test[,1]-myPred(data_train = data_train_p,data_test = mydata_test,method=mymethod)))^2-abs((mydata_test[,1]-0))^2
-
-#######################################################################################
-#######################################################################################
-#######################################################################################
-# TIMEley
 M <- 250
 
-N_test <- dim(mydata_test)[1]
 phim <- array(NA, dim = c(N_test, K, M))
 phi <- array(NA, dim = c(N_test, K, M))
 phi_pred_p <- array(NA, dim = c(N_test, K, M))
 phi_pred_idx <- array(NA, dim = c(M, K))
 
-mydata_train_k <- array(NA, dim = c(fl_train, J + 1, K))
-mydata_test_k <- array(NA, dim = c(fl_test, J + 1, K))
-mydata_eval_k <- array(NA, dim = c(fl_eval, J + 1, K))
+# Split data into K clusters
+mdata_train_k <- array(NA, dim = c(K_train, J + 1, K))
+mdata_test_k <- array(NA, dim = c(K_test, J + 1, K))
+mdata_eval_k <- array(NA, dim = c(K_eval, J + 1, K))
+
 for (k in 1:K) {
+  # y, x1, x2, x3, x4
   for (j in 1:(J + 1)) {
-    mydata_train_k[, j, k] <- mydata_train[(fl_train * (k - 1) + 1):(fl_train * k), j]
-    mydata_test_k[, j, k] <- mydata_test[(fl_test * (k - 1) + 1):(fl_test * k), j]
-    mydata_eval_k[, j, k] <- mydata_eval[(fl_eval * (k - 1) + 1):(fl_eval * k), j]
+    mdata_train_k[, j, k] <- mdata_train[(K_train * (k - 1) + 1):(K_train * k), j]
+    mdata_test_k[, j, k] <- mdata_test[(K_test * (k - 1) + 1):(K_test * k), j]
+    mdata_eval_k[, j, k] <- mdata_eval[(K_eval * (k - 1) + 1):(K_eval * k), j]
   }
 }
-mydata_train_k_shuffel <- mydata_train_k
 
 set.seed(7)
+
+log_info("Calculating Shapley values for each cluster")
 for (k in 1:K) {
-  print(k)
+  log_info("Cluster {k}")
+  pb <- txtProgressBar(min = 0, max = M, style = 3, width = 50)
   for (m in 1:M) {
-    o <- matrix(sample(1:K), nrow = 1)
+    cluster_permutation <- matrix(sample(1:K), nrow = 1)
+    # print(cluster_permutation)
 
-    if (mySampling == 'out') {
-      if (which(o == k) == 1) {
-        data_train_m <- data_train_p * 0
-      } else {
-        data_train_m <- R.utils::wrap(mydata_train_k[,, o[1:(which(o == k) - 1)]], map = list(NA, 2))
-      }
-      data_train_p <- R.utils::wrap(mydata_train_k[,, o[1:(which(o == k))]], map = list(NA, 2))
+    # D- contains clusters preceding k in the permutation; D+ also contains k.
+    cluster_position <- which(cluster_permutation == k)
+    data_train_p <- R.utils::wrap(
+      mdata_train_k[,, cluster_permutation[1:cluster_position]],
+      map = list(NA, 2)
+    )
+    if (cluster_position == 1) {
+      # The paper defines f_empty(x) = 0.  No model is trained for D-.
+      data_train_m <- NULL
+    } else {
+      data_train_m <- R.utils::wrap(
+        mdata_train_k[,, cluster_permutation[1:(cluster_position - 1)]],
+        map = list(NA, 2)
+      )
+    }
 
-      if (PA) {
-        #GLOBAL CLASSIFICATION HACK
-        if (global_classification) {
-          if (which(o == k) == 1) {
-            phim[, k, m] <- acc(true_states, mydata_train = data_train_p, mydata_test)
-          } else {
-            phim[, k, m] <- acc(true_states, mydata_train = data_train_p, mydata_test) -
-              acc(true_states, mydata_train = data_train_m, mydata_test)
-          }
-        } else {
-          # IF NOT CLOBAL CLASSIFICATION, RETURN TO USUAL
-          if (which(o == k) == 1) {
-            phim[, k, m] <- abs(
-              (mydata_test[, 1] - myPred(data_train = data_train_p, data_test = mydata_test, method = mymethod))
-            )^2 -
-              abs((mydata_test[, 1] - 0))^2
-          } else {
-            phim[, k, m] <- abs(
-              (mydata_test[, 1] - myPred(data_train = data_train_p, data_test = mydata_test, method = mymethod))
-            )^2 -
-              abs((mydata_test[, 1] - myPred(data_train = data_train_m, data_test = mydata_test, method = mymethod)))^2
-          }
-        }
+    if (global_classification) {
+      # v = accuracy
+      # accuracy(D+) - accuracy(D-)
+      if (cluster_position == 1) {
+        phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, mdata_test) - 0
       } else {
-        if (which(o == k) == 1) {
-          phim[, k, m] <- ((myPred(data_train = data_train_p, data_test = mydata_test, method = mymethod))) - 0 #mean_y_hat_train#mean(mydata_train[,1])
-        } else {
-          phim[, k, m] <- ((myPred(data_train = data_train_p, data_test = mydata_test, method = mymethod))) -
-            ((myPred(data_train = data_train_m, data_test = mydata_test, method = mymethod)))
-        }
+        phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, mdata_test) -
+          fn_accuracy(actual_states, X_train = data_train_m, mdata_test)
       }
     } else {
-      if (mySampling == 'continious') {
-        for (kk in 1:K) {
-          for (j in 1:(J + 1)) {
-            mydata_train_k_shuffel[, j, kk] <- runif(fl_train, min(mydata_train[, j]), max(mydata_train[, j]))
-          }
-        }
-      } else if (mySampling == 'discrete') {
-        for (kk in 1:K) {
-          for (j in 1:(J + 1)) {
-            mydata_train_k_shuffel[, j, kk] <- sample(
-              x = seq(from = min(mydata_train[, j]), to = max(mydata_train[, j]), by = 1),
-              size = fl_train,
-              replace = TRUE
-            ) #sample(c(0,2,3),fl_train,replace = T)
-          }
-        }
-      } else if (mySampling == 'shuffle') {
-        for (kk in 1:K) {
-          for (j in 2:(J + 1)) {
-            oo <- sample(x = seq(from = 1, to = dim(mydata_train)[1], by = 1), size = fl_train, replace = TRUE)
-            mydata_train_k_shuffel[, j, kk] <- mydata_train[oo, j]
-          }
-        }
-      }
+      if (prediction_accuracy) {
+        # v = (y - f(x))^2 - y^2
+        phi_pred_p[, k, m] <- (mdata_test[, 1] -
+          (fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod)))^2
+        phi_pred_idx[m, k] <- which(cluster_permutation == k)
 
-      if (which(o == k) == 1) {
-        data_train_p <- rbind(
-          R.utils::wrap(mydata_train_k[,, o[1]], map = list(NA, 2)),
-          R.utils::wrap(mydata_train_k_shuffel[,, -o[1]], map = list(NA, 2))
-        )
-        data_train_m <- R.utils::wrap(mydata_train_k_shuffel[,,], map = list(NA, 2))
-      } else if (which(o == k) == K) {
-        data_train_p <- R.utils::wrap(mydata_train_k[,, o[1:K]], map = list(NA, 2))
-        data_train_m <- rbind(
-          R.utils::wrap(mydata_train_k[,, o[1:(K - 1)]], map = list(NA, 2)),
-          R.utils::wrap(mydata_train_k_shuffel[,, -o[1:(K - 1)]], map = list(NA, 2))
-        )
+        if (cluster_position == 1) {
+          phim[, k, m] <- phi_pred_p[, k, m] - ((mdata_test[, 1] - 0))^2
+        } else {
+          phim[, k, m] <- phi_pred_p[, k, m] -
+            (mdata_test[, 1] - fn_prediction(data_train = data_train_m, data_test = mdata_test, method = mmethod))^2
+        }
       } else {
-        data_train_p <- rbind(
-          R.utils::wrap(mydata_train_k[,, o[1:which(o == k)]], map = list(NA, 2)),
-          R.utils::wrap(mydata_train_k_shuffel[,, -o[1:which(o == k)]], map = list(NA, 2))
-        )
-        data_train_m <- rbind(
-          R.utils::wrap(mydata_train_k[,, o[1:(which(o == k) - 1)]], map = list(NA, 2)),
-          R.utils::wrap(mydata_train_k_shuffel[,, -o[1:(which(o == k) - 1)]], map = list(NA, 2))
-        )
-      }
+        # v = f(x)
+        # prediction(D+) - prediction(D-)
+        phi_pred_p[, k, m] <- fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod)
+        phi_pred_idx[m, k] <- which(cluster_permutation == k)
 
-      if (PA) {
-        phim[, k, m] <- (mydata_test[, 1] -
-          (myPred(data_train = data_train_p, data_test = mydata_test, method = mymethod)))^2 -
-          (mydata_test[, 1] - (myPred(data_train = data_train_m, data_test = mydata_test, method = mymethod)))^2
-      } else {
-        phim[, k, m] <- ((myPred(data_train = data_train_p, data_test = mydata_test, method = mymethod))) -
-          ((myPred(data_train = data_train_m, data_test = mydata_test, method = mymethod)))
+        if (cluster_position == 1) {
+          phim[, k, m] <- phi_pred_p[, k, m] - 0
+        } else {
+          phim[, k, m] <- phi_pred_p[, k, m] -
+            fn_prediction(data_train = data_train_m, data_test = mdata_test, method = mmethod)
+        }
       }
-    } # end mySampling
+    }
 
+    # Shapley value for cluster k up to m
     phi[, k, m] <- apply(phim[, k, ], MARGIN = 1, FUN = mean, na.rm = T)
-
-    if (PA == TRUE) {
-      phi_pred_p[, k, m] <- (mydata_test[, 1] -
-        (myPred(data_train = data_train_p, data_test = mydata_test, method = mymethod)))^2
-      phi_pred_idx[m, k] <- which(o == k)
-    } else {
-      phi_pred_p[, k, m] <- ((myPred(data_train = data_train_p, data_test = mydata_test, method = mymethod)))
-      phi_pred_idx[m, k] <- which(o == k)
-    }
+    setTxtProgressBar(pb, m)
   }
+  close(pb)
 }
 
-phi_k <- array(NA, dim = c(fl_test, K, K))
-for (k in 1:K) {
-  phi_k[,, k] <- phi[(fl_test * (k - 1) + 1):(fl_test * k), , M]
-}
+if (global_classification) {
+  # Accuracy is global, so each row of phi is identical; use the first one.
+  global_phi <- phi[1, , ]
 
-
-X_test_pred <- AAKR(X_test = mydata_test, X_train = mydata_train)
-### AAKR PLOT
-par(mar = c(2, 5, 1, 1))
-par(mfrow = c(length(includeMyData), 1))
-for (j in includeMyData) {
-  plot(mydata_test[, j], col = colarray_train, ylab = colnames(mydata_full)[j], ylim = c(-1, 1))
-  points(X_test_pred[, j], col = 'red')
-}
-
-
-X_test_pred <- AAKR(X_test = mydata_test, X_train = data_train_m)
-my_res <- (X_test_pred - mydata_test)
-my_res_max <- apply(abs(my_res), 1, sum)
-predicted_states <- abs(my_res_max) > .5
-
-TP <- (actual_states == 1 & predicted_states == 1)
-FP <- (actual_states == 0 & predicted_states == 1)
-FN <- (actual_states == 1 & predicted_states == 0)
-TN <- (actual_states == 0 & predicted_states == 0)
-
-plot(TP)
-plot(TN)
-plot(FN)
-plot(FP)
-
-
-# #######################################################################################
-# #######################################################################################
-# #######################################################################################
-# # SHAPLEY
-#
-# mydata_train_df=data.frame(mydata_train)
-# mydata_temp_df=data.frame(mydata_test)
-# colnames(mydata_train_df)[1]='y'
-# mylm = lm(y ~ ., data = mydata_train_df)
-# # df=data.frame(mydata)
-# X = mydata_train_df[which(names(mydata_train_df) != "y")]
-#
-# I=sample(1:N/4,50)
-# par(mfrow=c(1,length(I)))
-# par(mar=c(1,1,1,1)*4)
-# psi=array(NA,dim=c(J,length(I)))
-# ii=0
-# for (i in I){
-#   ii=ii+1
-#   predictor = Predictor$new(mylm, data = X, y = mydata_train_df$y)
-#   shapley = Shapley$new(predictor, x.interest = mydata_temp_df[i,2:dim(mydata_temp_df)[2]],sample.size=100)
-#   psi[,ii]=shapley$results$phi
-#   #barplot(shapley$results$phi,horiz = TRUE)
-#   shapley$plot()
-# }
-# rowMeans(psi)
-
-#######################################################################################
-#######################################################################################
-#######################################################################################
-### EVAL NEW
-
-#test
-mydata_temp <- mydata_test
-fl_temp <- fl_test
-MSE <- array(NA, 1)
-set.seed(2)
-for (r in 1:1) {
-  res <- (mydata_temp[, 1] - myPred(data_train = mydata_train, data_test = mydata_temp, method = mymethod))
-  #res=mean(mydata_train[,1])
-  MSE[r] <- mean(res^2)
-}
-mean(MSE)
-sd(MSE)
-
-
-set.seed(3)
-y_hat_temp <- myPred(data_train = mydata_train, data_test = mydata_temp, method = mymethod)
-I <- order(y_hat_temp, decreasing = TRUE)[1:20]
-I <- sort(I)
-
-# par(mfrow=c(1,1))
-# par(mar=c(3,3,3,3))
-# plot(mydata_temp[,1],type='o')
-# lines(y_hat_temp,col=3)
-# points(I,y_hat_temp[I],col='red',pch=20)
-# points(I,mydata_temp[I,1],col='red',pch=20)
-# segments(I,y_hat_temp[I],I,mydata_temp[I,1],col='red')
-
-cbind(y_hat_temp[I], mydata_test_full[I, ])
-
-
-#######################################################################################
-#######################################################################################
-#######################################################################################
-par(mfcol = c(3, 1))
-par(mar = c(1, 2, 1, 1) * 2)
-barplot(colMeans(phi[,, M]), horiz = T, col = 1:K, main = TeX(''), xlim = c(-.15, .15))
-box()
-mean(phi[,, M])
-
-I <- which(mydata_test_full[, 2] < .25)
-barplot(colMeans(phi[I, , M]), horiz = T, col = 1:K, main = TeX('x_1<.25'))
-box()
-mean(phi[I, , M])
-
-I <- which(mydata_test_full[, 2] < .75)
-barplot(colMeans(phi[I, , M]), horiz = T, col = 1:K, main = TeX('x_1>.75'))
-box()
-mean(phi[I, , M])
-
-
-# I=which(mydata_test_full[,12]==K & mydata_test_full[,2]>(mus[1]*K) & mydata_test_full[,3]>(mus[2]*K) )
-# barplot(colMeans(phi[I,,M]),horiz = T,col=1:K,main='Discriminated',xlim=c(-.8,.8))
-# box()
-#
-# I=which(mydata_test_full[,12]==K & mydata_test_full[,2]<(mus[1]*K) & mydata_test_full[,3]<(mus[2]*K) )
-# barplot(colMeans(phi[I,,M]),horiz = T,col=1:K,main='Not discriminated',xlim=c(-.8,.8))
-# box()
-#
-#
-# I=which(mydata_test_full[,3]<0.2)
-# barplot(colMeans(phi[I,,M]),horiz = T,col=1:K,main='x2<0.2',xlim=c(-0.1,0.1))
-# box()
-
-# I=which(mydata_test_full[,4]<0.2)
-# barplot(colMeans(phi[I,,M]),horiz = T,col=1:K,main='',xlim=c(-0.1,0.1))
-# box()
-
-# I=order(phi[,5,M],decreasing = FALSE)[1:5]
-# mydata_test_full[I,]
-# barplot(colMeans(phi[I,,M]),horiz = T,col=1:K,main='100 least disccriminated individual',xlim=c(-10,10))
-# box()
-
-set.seed(21)
-I1 <- which(mydata_test_full[, 1] < summary(mydata_test[, 1])[2])
-I2 <- which(mydata_test_full[, 1] > summary(mydata_test[, 1])[5])
-#I=c(sort(sample(I1[which(I1<500)],3)),sort(sample(I2[which(I2>500)],3)))
-#I=sample(1:N/4,7)
-# I=sample(which(mydata_test_full[,6]==3),5)
-#I=(N/4)/(8)*seq(from=1,to = 8,by = 2)
-I <- c(50, 150, 250, 350, 450)
-#I=c(50,150,250,350,450)-25
-
-par(mar = c(3, 3, 2, 2) * .7)
-nf <- layout(
-  matrix(
-    c(rep(1, length(I)), 2:(length(I) * 2 + 1 + 2), (length(I) * 3 + 2):(length(I) * 2 + 1)),
-    3,
-    length(I),
-    byrow = TRUE
-  ),
-  respect = TRUE
-)
-layout.show(nf)
-if (PA == FALSE) {
-  i <- 1:dim(mydata_temp)[1]
-  plot(1:dim(mydata_temp)[1], y_hat_temp[], xaxs = "i", ylab = 'y test', main = '', type = 'l', col = 0)
-  for (k in 1:K) {
-    for (m in round(seq(from = 1, to = M, length.out = 50))) {
-      #lines(phi_pred_p[,k,m],col=alpha(k, 0.1),pch='.',lty=1)
-    }
-  }
-  lines(1:dim(mydata_temp)[1], y_hat_temp, xaxs = "i", col = 11, ylab = 'y test', main = '', lwd = 3)
-  for (i in I) {
-    points(i, mydata_temp[i, 1] - res[i], pch = 16, cex = 2, col = 9) #floor(i/fl_test)+1)
-    abline(v = i, lty = 2)
-  }
-  #abline(h=0,lty=3,lwd=0.5)
-  title('Predictions', 2)
-} else if (PA == TRUE) {
-  i <- 1:dim(mydata_temp)[1]
-  plot(1:dim(mydata_temp)[1], (y_hat_temp - mydata_temp[, 1])^2, xaxs = "i", ylab = 'y test', main = '', col = 0)
-  for (k in 1:K) {
-    for (m in round(seq(from = 1, to = M, length.out = 10))) {
-      #lines(phi_pred_p[,k,m],col=alpha(k, 0.1),pch='.',lty=1)
-    }
-  }
-  lines(
-    1:dim(mydata_temp)[1],
-    (y_hat_temp - mydata_temp[, 1])^2,
-    xaxs = "i",
-    col = 11,
-    ylab = 'y test',
-    main = '',
-    lwd = 3
+  # Reset earlier multi-panel diagnostics so Fig. 7 fills the graphics device.
+  par(mfrow = c(1, 1), mar = c(5, 5.5, 3, 1))
+  plot(
+    seq_len(M),
+    global_phi[1, ],
+    type = "l",
+    col = 1,
+    lwd = 2,
+    xlim = c(1, M),
+    ylim = range(global_phi, na.rm = TRUE),
+    xlab = "Number of iterations (M)",
+    ylab = "Shapley values for explaining accuracy"
   )
-  for (i in I) {
-    points(i, (y_hat_temp[i] - mydata_temp[i, 1])^2, pch = 16, cex = 2, col = 9) #floor(i/fl_test)+1)
-    abline(v = i, lty = 2)
+  for (cluster_index in 2:K) {
+    lines(seq_len(M), global_phi[cluster_index, ], col = cluster_index, lwd = 2)
   }
-  #abline(h=0,lty=3,lwd=0.5)
-  title('Squared Error', 2)
-}
-# for (i in I){
-#   points(i,res[i],pch=19,cex=2,col='red')
-#   abline(v=i,lty=2)
-# }
-# title('Residuals',5)
-for (i in I) {
-  aa <- barplot(phi[i, , M], horiz = T, col = 1:K)
-  box()
-  #text(phi[i,,M],1:6,phi[i,,M])
-  # plot(phi[i,,M],col=0)
-  # abline(h=0)
-  # for (k in 1:K){
-  #   points(k,phi[i,k,M],col=k,pch=16,cex=3)
-  # }
-  # #title(format(round(var(phi[i,,M]), 3), nsmall = 3), line = -1)
-}
-for (i in I) {
-  plot(NA, xlim = c(0, M), ylim = c(min(phi[i, , ], na.rm = T), max(phi[i, , ], na.rm = T)), col = 0)
-  #plot(NA,xlim=c(0,M),col=0)
-  abline(h = 0, lty = 3)
-  for (k in 1:K) {
-    lines(phi[i, k, ], col = k)
-  }
-}
-mydata_test_full[I, ]
+  legend(
+    "topright",
+    title = "Clusters included",
+    legend = seq_len(K),
+    col = seq_len(K),
+    lty = 1,
+    lwd = 2
+  )
+} else {
+  selected_points <- c(50, 150, 250, 350, 450)
+  full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
 
+  par(mar = c(3, 3, 2, 2) * .7)
+  layout(
+    matrix(
+      c(
+        rep(1, length(selected_points)),
+        2:(length(selected_points) + 1),
+        (length(selected_points) + 2):(2 * length(selected_points) + 1)
+      ),
+      nrow = 3,
+      ncol = length(selected_points),
+      byrow = TRUE
+    ),
+    respect = TRUE
+  )
 
-# Efficiency
-
-PP <- 100
-P_empty <- array(NA, dim = c(N / 4, PP))
-P_N <- array(NA, dim = c(N / 4, PP))
-for (p in 1:PP) {
-  Z <- mydata_train
-  for (j in 2:(J + 1)) {
-    oo <- sample(x = seq(from = 1, to = dim(mydata_train)[1], by = 1), size = N / 4, replace = TRUE)
-    Z[, j] <- mydata_train[oo, j]
-  }
-  if (PA == FALSE) {
-    P_empty[, p] <- 0 #(myPred(data_train = Z,data_test = mydata_test,method = mymethod))
-    P_N[, p] <- (myPred(data_train = mydata_train, data_test = mydata_test, method = mymethod))
+  if (!prediction_accuracy) {
+    plotted_value <- full_prediction
+    plot_title <- "Predictions"
+    y_label <- "Prediction"
   } else {
-    P_empty[, p] <- 0 #(mydata_test[,1]^2)
-    P_N[, p] <- ((mydata_test[, 1] - myPred(data_train = mydata_train, data_test = mydata_test, method = mymethod))^2 -
-      mydata_test[, 1]^2)
+    plotted_value <- (full_prediction - mdata_test[, 1])^2
+    plot_title <- "Squared Error"
+    y_label <- "Squared error"
   }
-}
 
-par(mfrow = c(3, 1))
-par(mar = c(2, 2, 2, 2))
-plot(P_empty[, p], col = 0, ylim = c(-1.3, 1.8), main = TeX('$v(N)  =  E(f_N)  -  E(f_X)$'))
-for (p in 1:PP) {
-  lines(P_empty[, p], col = 10, lwd = 2)
-  lines(P_N[, p], col = 9, lwd = 1)
-}
-#lines(rowMeans(P_N),col=8,lwd=1,lty=1)
-#lines(rowMeans(P_empty),col=9,lwd=2,lty=3)
-legend("topright", legend = c(TeX('f_N'), TeX('$f_X$')), col = c(9, 10), lty = c(1, 1), cex = 0.8)
-plot(phi[, 1, M], col = 0, ylim = c(-1.3, 1.8), main = TeX('$\\varphi$'))
-for (k in 1:K) {
-  lines(phi[, k, M], col = k, lty = 1)
-}
-lines(apply(X = phi[,, M], MARGIN = 1, FUN = 'sum'), col = 11, lwd = 2)
-legend(
-  "topright",
-  legend = c(
-    TeX('$\\varphi_1$        '),
-    (TeX('$\\varphi_2$')),
-    TeX('$\\varphi_3   $ '),
-    TeX('$\\varphi_4$'),
-    TeX('$\\varphi_5$'),
-    c(TeX('    $  \\sum   \\varphi_k    $   '), '        ')
-  ),
-  col = c(1:5, 11),
-  lty = c(3, 3, 3, 3, 3, 1, 0),
-  lwd = c(1, 1, 1, 1, 1, 2)
-)
-plot(rowMeans(P_N) - rowMeans(P_empty), type = 'l', lwd = 1, col = 9, main = TeX('$\\sum\\varphi_k$ =v(N)'))
-for (p in 1:PP) {
-  lines(P_N[, p], col = 9, lwd = 1)
-}
-lines(apply(X = phi[,, M], MARGIN = 1, FUN = 'sum'), col = 11, lwd = 2, type = 'l', lty = 1)
-legend(
-  "topright",
-  legend = c((TeX('$v(N)$')), TeX('$\\sum\\varphi_k$        ')),
-  col = c(9, 11),
-  lty = c(1, 1),
-  lwd = c(1, 2)
-)
-
-
-y_hat_test <- myPred(data_train = mydata_train, data_test = mydata_test, method = mymethod)
-#
-# # sum phi
-# colMeans(phi[,,M])
-# sum(colMeans(phi[,,M]))
-#
-# sum(colMeans(phi[,,M]))/sum(abs(colMeans(phi[,,M])))*100
-#
-
-# SYMMETRY
-
-par(mfrow = c(1, 1))
-
-plot(phi[, 4, M], type = 'l', col = 4, lwd = 2)
-lines(phi[, 5, M], col = 5, lty = 3, lwd = 2)
-legend(
-  "topleft",
-  legend = c(TeX('$\\varphi_4$'), TeX('$\\varphi_5$'), '        '),
-  col = 4:5,
-  lty = c(1, 3, 0, 3, 3, 1, 0),
-  lwd = c(2, 2, 1, 1, 1, 2)
-)
-
-#plot((phi[,4,M]-phi[,5,M])/(max(phi[,4:5,M])-min(phi[,4:5,M])))
-
-par(mfrow = c(5, 1))
-plot(phi[, 1, M], col = 1, type = 'o', ylim = c(min(phi[,, M]), max(phi[,, M])))
-abline(h = 0)
-for (k in 2:K) {
-  points(phi[, k, M], col = k, type = 'o')
-}
-if (PA == TRUE) {
-  plot((mydata_test[, 1] - y_hat_test)^2, type = 'o')
-} else {
-  plot((mydata_test[, 1]), type = 'o')
-  lines(y_hat_test, col = K + 1, type = 'o')
-}
-#lines(y_hat_test,col='red')
-
-plot(mydata_train[, 1], col = mydata_train_full[, 6], ylim = c(-3, 3), type = 'o')
-plot(mydata_train[, 2], col = mydata_train_full[, 6], ylim = c(-3, 3), type = 'o')
-plot(mydata_train[, 3], col = mydata_train_full[, 6], ylim = c(-3, 3), type = 'o')
-
-############
-par(mfrow = c(2, 1))
-plot(phi[, 1, M], col = 1, type = 'l', ylim = c(min(phi[,, M]), max(phi[,, M])))
-abline(h = 0)
-for (k in 2:K) {
-  points(phi[, k, M], col = k, type = 'l')
-}
-
-if (PA == TRUE) {
-  plot((mydata_test[, 1] - phi_pred_p[, 1, 1])^2, type = 'l', lwd = 0.4, col = 0, lty = 1)
-  for (k in 1:K) {
-    for (m in round(seq(from = 1, to = M, length.out = 5))) {
-      lines((mydata_test[, 1] - phi_pred_p[, k, m])^2, col = k, pch = '.', lty = 1)
-    }
-    # for( k in 1:K){
-    #   lines((mydata_test[,1]-myPred(data_train = mydata_train_k[,,k],data_test=mydata_test,method=mymethod))^2,col=k,lty=1)
-    # }
+  # Top row: full-model prediction or squared error
+  plot(seq_along(plotted_value), plotted_value, xaxs = "i", ylab = y_label, main = "", type = "l", col = 11, lwd = 3)
+  for (point_index in selected_points) {
+    points(point_index, plotted_value[point_index], pch = 16, cex = 1.5, col = 9)
+    abline(v = point_index, lty = 2)
   }
-  lines((mydata_test[, 1] - phi_pred_p[, 1, M])^2, type = 'l', col = 'red', lwd = 2)
-  lines(mydata_test[, 1] - mydata_test[, 1], col = 1, lwd = 2)
-} else {
-  plot(phi_pred_p[, 1, 1], type = 'l', lwd = 0.4, col = 0, lty = 1, ylim = c(min(phi_pred_p), max(phi_pred_p)))
-  for (k in 1:K) {
-    for (m in round(seq(from = 1, to = M, length.out = 20))) {
-      lines(phi_pred_p[, k, m], col = k, pch = '.', lty = 1)
-    }
-    Sys.sleep(2)
-  }
-  lines(phi_pred_p[, 1, M], type = 'l', col = 'red', lwd = 2)
-  lines(mydata_test[, 1], col = 1, lwd = 2)
-}
-# for( k in 1:K){
-#   lines(myPred(data_train = mydata_train_k[,,k],data_test=mydata_test,method=mymethod),col=k,lty=3)
-# }
+  title(plot_title, line = 0)
 
-par(mar = c(2, 1, 2, 2) * .5)
-par(mfrow = c(2, 1))
-if (PA == FALSE) {
-  plot(1:dim(mydata_temp)[1], y_hat_temp[], xaxs = "i", ylab = 'y test', main = '', type = 'l', col = 0)
-  for (k in 1:K) {
-    for (m in round(seq(from = 1, to = M, length.out = M))) {
-      lines(phi_pred_p[, k, m], col = alpha(k, 0.1), pch = '.', lty = 1)
-    }
+  # Middle row: final local Shapley values for each selected test point.
+  for (point_index in selected_points) {
+    barplot(phi[point_index, , M], horiz = TRUE, col = seq_len(K), main = "")
+    box()
   }
-  lines(1:dim(mydata_temp)[1], y_hat_temp, xaxs = "i", col = 9, ylab = 'y test', main = '', lwd = 3)
-  #abline(h=0,lty=3,lwd=0.5)
-  title('Predictions', 2)
-  lines(1:dim(mydata_temp)[1], mydata_temp[, 1], xaxs = "i", col = 11, ylab = 'y test', main = '', lwd = 3)
 
-  plot(phi[, k, M], col = 0)
-  for (k in 1:K) {
-    for (m in 1:M) {
-      lines(phi[, k, m], col = alpha(k, m / M))
+  # Bottom row: convergence of the Monte-Carlo Shapley estimates.
+  for (point_index in selected_points) {
+    point_phi <- phi[point_index, , , drop = FALSE]
+    plot(NA, xlim = c(1, M), ylim = range(point_phi, na.rm = TRUE), xlab = "", ylab = "", axes = FALSE)
+    axis(1, labels = FALSE)
+    axis(2, labels = FALSE)
+    abline(h = 0, lty = 3)
+    for (cluster_index in seq_len(K)) {
+      lines(seq_len(M), phi[point_index, cluster_index, ], col = cluster_index)
     }
   }
 }
-
-
-# par(mfrow=c(1,1))
-# par(mar=c(3,3,3,3))
-# plot(mydata_test[,1],col=0)
-# for (m in 1:M){
-#   for (k in 1:K){
-#     lines((phi_pred_p[,k,m]),col=alpha(k, 0.1))
-#   }
-# }
-
-MSE_lc <- array(NA, dim = c(M, K))
-for (m in 1:M) {
-  for (k in 1:K) {
-    MSE_lc[m, k] <- mean((phi_pred_p[, k, m]))
-  }
-}
-
-par(mfrow = c(1, 1))
-par(mar = c(2, 2, 1, 1) * 2)
-plot(
-  0:K,
-  col = 0,
-  ylim = c(min(MSE_lc), max(MSE_lc)),
-  xlim = c(0.5, K),
-  xlab = 'Number of subsets in the training data',
-  ylab = 'MSE'
-)
-for (k in 1:K) {
-  for (m in 150:250) {
-    #points(c(0,phi_pred_idx[m,k]),c(empty,MSE_lc[m,k]),col=alpha(k, 0.05),pch='-',cex=8)
-    points(c(phi_pred_idx[m, k]) + runif(1, -.2, .2), c(MSE_lc[m, k]), col = alpha(k, 1), pch = '.', cex = 8)
-  }
-}
-
-MLC <- array(NA, dim = c(K, K))
-empty <- mean(mydata_test[, 1]^2)
-for (k in 1:K) {
-  # look at each fold
-  for (kk in 1:K) {
-    # how many in phi_pred_idx
-    MLC[kk, k] <- mean(MSE_lc[which(phi_pred_idx[, k] == kk), k])
-  }
-}
-for (k in 1:K) {
-  #lines(0:K,c(empty,MLC[,k]),col=k,type='o',pch=15,lwd=2)
-  lines(1:K, c(MLC[, k]), col = k, type = 'o', pch = 15, lwd = 2)
-}
-legend("topright", legend = c(1:5), col = c(1:5, 11), lty = 1, lwd = c(1, 1, 1, 1, 1, 2), title = 'Subset included')
