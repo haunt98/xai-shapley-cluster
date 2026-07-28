@@ -1,4 +1,5 @@
 library(R.utils)
+library(optparse)
 require(FNN)
 require(nnet)
 require(randomForest)
@@ -120,13 +121,28 @@ fn_prediction_error <- function(y, y_hat, metric) {
 
 
 # Init
-mmetric <- 'MSE'
 mmethod <- 'rf' # Which regression model to use
 
-prediction_accuracy <- TRUE
+option_list <- list(
+  make_option(
+    c("--prediction-accuracy"),
+    type = "logical",
+    default = TRUE,
+    help = "Use prediction accuracy [default %default]"
+  ),
+  make_option(
+    c("--global-classification"),
+    type = "logical",
+    default = FALSE,
+    help = "Use global classification [default %default]"
+  )
+)
+opt <- parse_args(OptionParser(option_list = option_list))
+
+prediction_accuracy <- opt$`prediction-accuracy`
 log_info("prediction_accuracy: {prediction_accuracy}")
 
-global_classification <- FALSE
+global_classification <- opt$`global-classification`
 log_info("global_classification: {global_classification}")
 
 K <- 5 # Number of clusters
