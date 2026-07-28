@@ -198,7 +198,6 @@ col_array_train <- array(NA, N_train)
 for (k in 1:K) {
   col_array_train[((k - 1) * K_train + 1):(K_train * k)] <- rep(k, K_train)
 }
-# print(col_array_train)
 
 par(mar = c(2, 5, 2, 2)) # margin bottom, left, top, right
 par(mfrow = c(length(include_mdata), 1))
@@ -315,14 +314,14 @@ for (k in 1:K) {
     cluster_permutation <- matrix(sample(1:K), nrow = 1)
     # print(cluster_permutation)
 
-    # D- contains clusters preceding k in the permutation; D+ also contains k.
     cluster_position <- which(cluster_permutation == k)
+    # D+
     data_train_p <- R.utils::wrap(
       mdata_train_k[,, cluster_permutation[1:cluster_position]],
       map = list(NA, 2)
     )
+    # D-
     if (cluster_position == 1) {
-      # The paper defines f_empty(x) = 0.  No model is trained for D-.
       data_train_m <- NULL
     } else {
       data_train_m <- R.utils::wrap(
