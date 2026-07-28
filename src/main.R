@@ -122,7 +122,6 @@ fn_prediction_error <- function(y, y_hat, metric) {
 # Init
 mmetric <- 'MSE'
 mmethod <- 'rf' # Which regression model to use
-msampling <- 'out' # 'shuffle', 'continious', 'discrete', 'shuffle'
 
 prediction_accuracy <- TRUE
 global_classification <- TRUE
@@ -221,53 +220,57 @@ mdata_test <- mdata_train
 
 # Insert anomalies into the test data
 actual_states <- rep(0, dim(mdata_test)[1])
-actual_states[200:249] <- rep(1, 50)
-actual_states[300:349] <- rep(1, 50)
-mdata_test[200:249, 2] <- mdata_test[200:249, 2] + rnorm(50, -0.5, 0.5) # x1
-mdata_test[300:349, 5] <- mdata_test[300:349, 5] + rnorm(50, -0.5, 0.5) # x4
 
-# Plot test data with anomalies
-par(mar = c(2, 5, 2, 2))
-par(mfrow = c(length(include_mdata), 1))
+if (global_classification) {
+  actual_states[200:249] <- rep(1, 50)
+  actual_states[300:349] <- rep(1, 50)
+  mdata_test[200:249, 2] <- mdata_test[200:249, 2] + rnorm(50, -0.5, 0.5) # x1
+  mdata_test[300:349, 5] <- mdata_test[300:349, 5] + rnorm(50, -0.5, 0.5) # x4
 
-# Plot y, x1, x2, x3, x4
-for (j in include_mdata) {
-  plot(mdata_test[, j], col = col_array_train, ylab = colnames(mdata_full)[j])
-  # Plot anomalies
-  if (j == 2) {
-    points(200:249, mdata_test[200:249, 2], col = 6, pch = 16)
+  # Plot test data with anomalies
+  par(mar = c(2, 5, 2, 2))
+  par(mfrow = c(length(include_mdata), 1))
+
+  # Plot y, x1, x2, x3, x4
+  for (j in include_mdata) {
+    plot(mdata_test[, j], col = col_array_train, ylab = colnames(mdata_full)[j])
+    # Plot anomalies
+    if (j == 2) {
+      points(200:249, mdata_test[200:249, 2], col = 6, pch = 16)
+    }
+    if (j == 5) {
+      points(300:349, mdata_test[300:349, 5], col = 6, pch = 16)
+    }
   }
-  if (j == 5) {
-    points(300:349, mdata_test[300:349, 5], col = 6, pch = 16)
+
+  mtext("Test data with anomalies", side = 3, line = -1.5, outer = TRUE)
+
+  X_test_pred <- AAKR(X_test = mdata_test, X_train = mdata_train)
+
+  # Plot AAKR
+  par(mar = c(2, 5, 2, 2))
+  par(mfrow = c(length(include_mdata), 1))
+
+  # Plot y, x1, x2, x3, x4
+  for (j in include_mdata) {
+    plot(mdata_train[, j], col = col_array_train, ylab = colnames(mdata_full)[j], ylim = c(-1, 1))
+    points(X_test_pred[, j], col = 6, pch = 16)
   }
+
+  mtext("Compare train data with AAKR predictions", side = 3, line = -1.5, outer = TRUE)
+
+  par(mar = c(2, 5, 2, 2))
+  par(mfrow = c(length(include_mdata), 1))
+
+  # Plot y, x1, x2, x3, x4
+  for (j in include_mdata) {
+    plot(mdata_test[, j], col = col_array_train, ylab = colnames(mdata_full)[j], ylim = c(-1, 1))
+    points(X_test_pred[, j], col = 6, pch = 16)
+  }
+
+  mtext("Compare test data with AAKR predictions", side = 3, line = -1.5, outer = TRUE)
 }
 
-mtext("Test data with anomalies", side = 3, line = -1.5, outer = TRUE)
-
-X_test_pred <- AAKR(X_test = mdata_test, X_train = mdata_train)
-
-# Plot AAKR
-par(mar = c(2, 5, 2, 2))
-par(mfrow = c(length(include_mdata), 1))
-
-# Plot y, x1, x2, x3, x4
-for (j in include_mdata) {
-  plot(mdata_train[, j], col = col_array_train, ylab = colnames(mdata_full)[j], ylim = c(-1, 1))
-  points(X_test_pred[, j], col = 6, pch = 16)
-}
-
-mtext("Compare train data with AAKR predictions", side = 3, line = -1.5, outer = TRUE)
-
-par(mar = c(2, 5, 2, 2))
-par(mfrow = c(length(include_mdata), 1))
-
-# Plot y, x1, x2, x3, x4
-for (j in include_mdata) {
-  plot(mdata_test[, j], col = col_array_train, ylab = colnames(mdata_full)[j], ylim = c(-1, 1))
-  points(X_test_pred[, j], col = 6, pch = 16)
-}
-
-mtext("Compare test data with AAKR predictions", side = 3, line = -1.5, outer = TRUE)
 
 fn_accuracy <- function(actual_states, X_train, X_test) {
   X_test_pred <- AAKR(X_test = X_test, X_train = X_train)
@@ -286,7 +289,7 @@ fn_accuracy <- function(actual_states, X_train, X_test) {
 
 M <- 250
 
-phim <- array(NA, dim = c(N_test, K, M)) # Per each m in M
+phim <- array(NA, dim = c(N_test, K, M))
 phi <- array(NA, dim = c(N_test, K, M))
 phi_pred_p <- array(NA, dim = c(N_test, K, M))
 phi_pred_idx <- array(NA, dim = c(M, K))
@@ -305,8 +308,6 @@ for (k in 1:K) {
   }
 }
 
-mydata_train_k_shuffle <- mdata_train_k
-
 set.seed(7)
 
 for (k in 1:K) {
@@ -315,139 +316,62 @@ for (k in 1:K) {
     cluster_permutation <- matrix(sample(1:K), nrow = 1)
     log_info("Permutation: {cluster_permutation}")
 
-    if (msampling == 'out') {
-      # m is minus, without k
-      # p is plus, with k
-      data_train_p <- R.utils::wrap(
-        mdata_train_k[,, cluster_permutation[1:(which(cluster_permutation == k))]],
+    # D- contains clusters preceding k in the permutation; D+ also contains k.
+    cluster_position <- which(cluster_permutation == k)
+    data_train_p <- R.utils::wrap(
+      mdata_train_k[,, cluster_permutation[1:cluster_position]],
+      map = list(NA, 2)
+    )
+    if (cluster_position == 1) {
+      # The paper defines f_empty(x) = 0.  No model is trained for D-.
+      data_train_m <- NULL
+    } else {
+      data_train_m <- R.utils::wrap(
+        mdata_train_k[,, cluster_permutation[1:(cluster_position - 1)]],
         map = list(NA, 2)
       )
-      if (which(cluster_permutation == k) == 1) {
-        # Cluster k is first
-        data_train_m <- data_train_p * 0
-      } else {
-        data_train_m <- R.utils::wrap(
-          mdata_train_k[,, cluster_permutation[1:(which(cluster_permutation == k) - 1)]],
-          map = list(NA, 2)
-        )
-      }
+    }
 
-      if (prediction_accuracy) {
-        if (global_classification) {
-          if (which(cluster_permutation == k) == 1) {
-            phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, mdata_test)
-          } else {
-            phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, mdata_test) -
-              fn_accuracy(actual_states, X_train = data_train_m, mdata_test)
-          }
+    if (prediction_accuracy) {
+      if (global_classification) {
+        # v = accuracy
+        # accuracy(D+) - accuracy(D-)
+        if (cluster_position == 1) {
+          phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, mdata_test)
         } else {
-          if (which(cluster_permutation == k) == 1) {
-            phim[, k, m] <- abs(
-              (mdata_test[, 1] - fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod))
-            )^2 -
-              abs((mdata_test[, 1] - 0))^2
-          } else {
-            phim[, k, m] <- abs(
-              (mdata_test[, 1] - fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod))
-            )^2 -
-              abs(
-                (mdata_test[, 1] - fn_prediction(data_train = data_train_m, data_test = mdata_test, method = mmethod))
-              )^2
-          }
+          phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, mdata_test) -
+            fn_accuracy(actual_states, X_train = data_train_m, mdata_test)
         }
       } else {
-        if (which(cluster_permutation == k) == 1) {
-          phim[, k, m] <- ((fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod))) - 0 #mean_y_hat_train#mean(mydata_train[,1])
+        # v = (y - f(x))^2 - y^2
+        phi_pred_p[, k, m] <- (mdata_test[, 1] -
+          (fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod)))^2
+        phi_pred_idx[m, k] <- which(cluster_permutation == k)
+
+        if (cluster_position == 1) {
+          phim[, k, m] <- phi_pred_p[, k, m] - ((mdata_test[, 1] - 0))^2
         } else {
-          phim[, k, m] <- ((fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod))) -
-            ((fn_prediction(data_train = data_train_m, data_test = mdata_test, method = mmethod)))
+          phim[, k, m] <- phi_pred_p[, k, m] -
+            (mdata_test[, 1] - fn_prediction(data_train = data_train_m, data_test = mdata_test, method = mmethod))^2
         }
       }
     } else {
-      # TODO: Leave it alone
-      if (msampling == 'continious') {
-        for (kk in 1:K) {
-          for (j in 1:(J + 1)) {
-            mydata_train_k_shuffle[, j, kk] <- runif(K_train, min(mdata_train[, j]), max(mdata_train[, j]))
-          }
-        }
-      } else if (msampling == 'discrete') {
-        for (kk in 1:K) {
-          for (j in 1:(J + 1)) {
-            mydata_train_k_shuffle[, j, kk] <- sample(
-              x = seq(from = min(mdata_train[, j]), to = max(mdata_train[, j]), by = 1),
-              size = K_train,
-              replace = TRUE
-            ) #sample(c(0,2,3),K_train,replace = T)
-          }
-        }
-      } else if (msampling == 'shuffle') {
-        for (kk in 1:K) {
-          for (j in 2:(J + 1)) {
-            oo <- sample(x = seq(from = 1, to = dim(mdata_train)[1], by = 1), size = K_train, replace = TRUE)
-            mydata_train_k_shuffle[, j, kk] <- mdata_train[oo, j]
-          }
-        }
-      }
+      # v = f(x)
+      # prediction(D+) - prediction(D-)
+      phi_pred_p[, k, m] <- fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod)
+      phi_pred_idx[m, k] <- which(cluster_permutation == k)
 
-      if (which(cluster_permutation == k) == 1) {
-        data_train_p <- rbind(
-          R.utils::wrap(mdata_train_k[,, cluster_permutation[1]], map = list(NA, 2)),
-          R.utils::wrap(mydata_train_k_shuffle[,, -cluster_permutation[1]], map = list(NA, 2))
-        )
-        data_train_m <- R.utils::wrap(mydata_train_k_shuffle[,,], map = list(NA, 2))
-      } else if (which(cluster_permutation == k) == K) {
-        data_train_p <- R.utils::wrap(mdata_train_k[,, cluster_permutation[1:K]], map = list(NA, 2))
-        data_train_m <- rbind(
-          R.utils::wrap(mdata_train_k[,, cluster_permutation[1:(K - 1)]], map = list(NA, 2)),
-          R.utils::wrap(mydata_train_k_shuffle[,, -cluster_permutation[1:(K - 1)]], map = list(NA, 2))
-        )
+      if (cluster_position == 1) {
+        phim[, k, m] <- phi_pred_p[, k, m] - 0
       } else {
-        data_train_p <- rbind(
-          R.utils::wrap(mdata_train_k[,, cluster_permutation[1:which(cluster_permutation == k)]], map = list(NA, 2)),
-          R.utils::wrap(
-            mydata_train_k_shuffle[,, -cluster_permutation[1:which(cluster_permutation == k)]],
-            map = list(NA, 2)
-          )
-        )
-        data_train_m <- rbind(
-          R.utils::wrap(
-            mdata_train_k[,, cluster_permutation[1:(which(cluster_permutation == k) - 1)]],
-            map = list(NA, 2)
-          ),
-          R.utils::wrap(
-            mydata_train_k_shuffle[,, -cluster_permutation[1:(which(cluster_permutation == k) - 1)]],
-            map = list(NA, 2)
-          )
-        )
-      }
-
-      if (prediction_accuracy) {
-        phim[, k, m] <- (mdata_test[, 1] -
-          (fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod)))^2 -
-          (mdata_test[, 1] - (fn_prediction(data_train = data_train_m, data_test = mdata_test, method = mmethod)))^2
-      } else {
-        phim[, k, m] <- ((fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod))) -
-          ((fn_prediction(data_train = data_train_m, data_test = mdata_test, method = mmethod)))
+        phim[, k, m] <- phi_pred_p[, k, m] -
+          fn_prediction(data_train = data_train_m, data_test = mdata_test, method = mmethod)
       }
     }
 
+    # Shapley value for cluster k up to m
     phi[, k, m] <- apply(phim[, k, ], MARGIN = 1, FUN = mean, na.rm = T)
-
-    if (prediction_accuracy == TRUE) {
-      phi_pred_p[, k, m] <- (mdata_test[, 1] -
-        (fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod)))^2
-      phi_pred_idx[m, k] <- which(cluster_permutation == k)
-    } else {
-      phi_pred_p[, k, m] <- ((fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod)))
-      phi_pred_idx[m, k] <- which(cluster_permutation == k)
-    }
   }
-}
-
-phi_k <- array(NA, dim = c(K_test, K, K))
-for (k in 1:K) {
-  phi_k[,, k] <- phi[(K_test * (k - 1) + 1):(K_test * k), , M]
 }
 
 
