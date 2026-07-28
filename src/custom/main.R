@@ -375,11 +375,11 @@ for (k in 1:K) {
 }
 
 if (global_classification) {
-  # Accuracy is global, so each row of phi is identical; use the first one.
+  # Accuracy is global, so each row of phi is identical then use the first one.
   global_phi <- phi[1, , ]
 
-  # Reset earlier multi-panel diagnostics so Fig. 7 fills the graphics device.
-  par(mfrow = c(1, 1), mar = c(5, 5.5, 3, 1))
+  par(mar = c(5, 5.5, 3, 1))
+  par(mfrow = c(1, 1))
   plot(
     seq_len(M),
     global_phi[1, ],
@@ -389,7 +389,7 @@ if (global_classification) {
     xlim = c(1, M),
     ylim = range(global_phi, na.rm = TRUE),
     xlab = "Number of iterations (M)",
-    ylab = "Shapley values for explaining accuracy"
+    ylab = "Shapley values for explaining accuracy",
   )
   for (cluster_index in 2:K) {
     lines(seq_len(M), global_phi[cluster_index, ], col = cluster_index, lwd = 2)
