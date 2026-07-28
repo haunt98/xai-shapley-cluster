@@ -13,11 +13,21 @@ require(iml)
 require(rmutil)
 library(latex2exp)
 
-# https://packages.tesselle.org/khroma/articles/tol.html
-library(khroma)
-
-vibrant <- color("vibrant")
-palette(vibrant(7))
+dnvgl <- c(
+  rgb(153, 214, 240, maxColorValue = 255),
+  rgb(0, 53, 145, maxColorValue = 255),
+  rgb(63, 156, 53, maxColorValue = 255),
+  rgb(15, 32, 75, maxColorValue = 255),
+  rgb(0, 159, 218, maxColorValue = 255),
+  rgb(254, 203, 0, maxColorValue = 255),
+  rgb(233, 131, 0, maxColorValue = 255),
+  rgb(110, 80, 145, maxColorValue = 255),
+  rgb(196, 38, 46, maxColorValue = 255),
+  rgb(152, 143, 134, maxColorValue = 255),
+  rgb(0, 0, 0, maxColorValue = 255)
+)
+dnvgl <- rep(dnvgl, 5)
+palette(dnvgl)
 
 library(logger)
 log_info("XAI Shapley Cluster")
@@ -314,7 +324,7 @@ for (k in 1:K) {
   log_info("Cluster {k}")
   for (m in 1:M) {
     cluster_permutation <- matrix(sample(1:K), nrow = 1)
-    log_info("Permutation: {cluster_permutation}")
+    # print(cluster_permutation)
 
     # D- contains clusters preceding k in the permutation; D+ also contains k.
     cluster_position <- which(cluster_permutation == k)
@@ -332,17 +342,17 @@ for (k in 1:K) {
       )
     }
 
-    if (prediction_accuracy) {
-      if (global_classification) {
-        # v = accuracy
-        # accuracy(D+) - accuracy(D-)
-        if (cluster_position == 1) {
-          phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, mdata_test)
-        } else {
-          phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, mdata_test) -
-            fn_accuracy(actual_states, X_train = data_train_m, mdata_test)
-        }
+    if (global_classification) {
+      # v = accuracy
+      # accuracy(D+) - accuracy(D-)
+      if (cluster_position == 1) {
+        phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, mdata_test)
       } else {
+        phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, mdata_test) -
+          fn_accuracy(actual_states, X_train = data_train_m, mdata_test)
+      }
+    } else {
+      if (prediction_accuracy) {
         # v = (y - f(x))^2 - y^2
         phi_pred_p[, k, m] <- (mdata_test[, 1] -
           (fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod)))^2
@@ -354,18 +364,18 @@ for (k in 1:K) {
           phim[, k, m] <- phi_pred_p[, k, m] -
             (mdata_test[, 1] - fn_prediction(data_train = data_train_m, data_test = mdata_test, method = mmethod))^2
         }
-      }
-    } else {
-      # v = f(x)
-      # prediction(D+) - prediction(D-)
-      phi_pred_p[, k, m] <- fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod)
-      phi_pred_idx[m, k] <- which(cluster_permutation == k)
-
-      if (cluster_position == 1) {
-        phim[, k, m] <- phi_pred_p[, k, m] - 0
       } else {
-        phim[, k, m] <- phi_pred_p[, k, m] -
-          fn_prediction(data_train = data_train_m, data_test = mdata_test, method = mmethod)
+        # v = f(x)
+        # prediction(D+) - prediction(D-)
+        phi_pred_p[, k, m] <- fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod)
+        phi_pred_idx[m, k] <- which(cluster_permutation == k)
+
+        if (cluster_position == 1) {
+          phim[, k, m] <- phi_pred_p[, k, m] - 0
+        } else {
+          phim[, k, m] <- phi_pred_p[, k, m] -
+            fn_prediction(data_train = data_train_m, data_test = mdata_test, method = mmethod)
+        }
       }
     }
 
@@ -375,87 +385,59 @@ for (k in 1:K) {
 }
 
 
-I <- c(50, 150, 250, 350, 450)
+selected_points <- c(50, 150, 250, 350, 450)
+full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
 
-par(mar = c(3, 3, 2, 2) * .7)
-
-nf <- layout(
+par(mar = c(2, 3, 2, 2))
+layout(
   matrix(
-    c(rep(1, length(I)), 2:(length(I) * 2 + 1 + 2), (length(I) * 3 + 2):(length(I) * 2 + 1)),
-    3,
-    length(I),
+    c(
+      rep(1, length(selected_points)),
+      2:(length(selected_points) + 1),
+      (length(selected_points) + 2):(2 * length(selected_points) + 1)
+    ),
+    nrow = 3,
+    ncol = length(selected_points),
     byrow = TRUE
   ),
   respect = TRUE
 )
-layout.show(nf)
 
-y_hat_temp <- myPred(data_train = mydata_train, data_test = mydata_temp, method = mymethod)
-
-if (prediction_accuracy == FALSE) {
-  i <- 1:dim(mydata_temp)[1]
-  plot(1:dim(mydata_temp)[1], y_hat_temp[], xaxs = "i", ylab = 'y test', main = '', type = 'l', col = 0)
-  for (k in 1:K) {
-    for (m in round(seq(from = 1, to = M, length.out = 50))) {
-      #lines(phi_pred_p[,k,m],col=alpha(k, 0.1),pch='.',lty=1)
-    }
-  }
-  lines(1:dim(mydata_temp)[1], y_hat_temp, xaxs = "i", col = 11, ylab = 'y test', main = '', lwd = 3)
-  for (i in I) {
-    points(i, mydata_temp[i, 1] - res[i], pch = 16, cex = 2, col = 9) #floor(i/K_test)+1)
-    abline(v = i, lty = 2)
-  }
-  #abline(h=0,lty=3,lwd=0.5)
-  title('Predictions', 2)
-} else if (prediction_accuracy == TRUE) {
-  i <- 1:dim(mydata_temp)[1]
-  plot(1:dim(mydata_temp)[1], (y_hat_temp - mydata_temp[, 1])^2, xaxs = "i", ylab = 'y test', main = '', col = 0)
-  for (k in 1:K) {
-    for (m in round(seq(from = 1, to = M, length.out = 10))) {
-      #lines(phi_pred_p[,k,m],col=alpha(k, 0.1),pch='.',lty=1)
-    }
-  }
-  lines(
-    1:dim(mydata_temp)[1],
-    (y_hat_temp - mydata_temp[, 1])^2,
-    xaxs = "i",
-    col = 11,
-    ylab = 'y test',
-    main = '',
-    lwd = 3
-  )
-  for (i in I) {
-    points(i, (y_hat_temp[i] - mydata_temp[i, 1])^2, pch = 16, cex = 2, col = 9) #floor(i/K_test)+1)
-    abline(v = i, lty = 2)
-  }
-  #abline(h=0,lty=3,lwd=0.5)
-  title('Squared Error', 2)
+if (!prediction_accuracy) {
+  plotted_value <- full_prediction
+  plot_title <- "Predictions"
+  y_label <- "Prediction"
+} else {
+  plotted_value <- (full_prediction - mdata_test[, 1])^2
+  plot_title <- "Squared Error"
+  y_label <- "Squared error"
 }
-# for (i in I){
-#   points(i,res[i],pch=19,cex=2,col='red')
-#   abline(v=i,lty=2)
-# }
-# title('Residuals',5)
-for (i in I) {
-  aa <- barplot(phi[i, , M], horiz = T, col = 1:K)
+
+# Top row: full-model prediction or squared error
+plot(seq_along(plotted_value), plotted_value, xaxs = "i", ylab = y_label, main = "", type = "l", col = 11, lwd = 3)
+for (point_index in selected_points) {
+  points(point_index, plotted_value[point_index], pch = 16, cex = 1.5, col = 9)
+  abline(v = point_index, lty = 2)
+}
+title(plot_title, line = 0)
+
+# Middle row: final local Shapley values for each selected test point.
+for (point_index in selected_points) {
+  barplot(phi[point_index, , M], horiz = TRUE, col = seq_len(K), main = "")
   box()
-  #text(phi[i,,M],1:6,phi[i,,M])
-  # plot(phi[i,,M],col=0)
-  # abline(h=0)
-  # for (k in 1:K){
-  #   points(k,phi[i,k,M],col=k,pch=16,cex=3)
-  # }
-  # #title(format(round(var(phi[i,,M]), 3), nsmall = 3), line = -1)
 }
-for (i in I) {
-  plot(NA, xlim = c(0, M), ylim = c(min(phi[i, , ], na.rm = T), max(phi[i, , ], na.rm = T)), col = 0)
-  #plot(NA,xlim=c(0,M),col=0)
+
+# Bottom row: convergence of the Monte-Carlo Shapley estimates.
+for (point_index in selected_points) {
+  point_phi <- phi[point_index, , , drop = FALSE]
+  plot(NA, xlim = c(1, M), ylim = range(point_phi, na.rm = TRUE), xlab = "", ylab = "", axes = FALSE)
+  axis(1, labels = FALSE)
+  axis(2, labels = FALSE)
   abline(h = 0, lty = 3)
-  for (k in 1:K) {
-    lines(phi[i, k, ], col = k)
+  for (cluster_index in seq_len(K)) {
+    lines(seq_len(M), phi[point_index, cluster_index, ], col = cluster_index)
   }
 }
-mdata_test_full[I, ]
 
 
 # Efficiency
@@ -604,16 +586,16 @@ if (prediction_accuracy == TRUE) {
 par(mar = c(2, 1, 2, 2) * .5)
 par(mfrow = c(2, 1))
 if (prediction_accuracy == FALSE) {
-  plot(1:dim(mydata_temp)[1], y_hat_temp[], xaxs = "i", ylab = 'y test', main = '', type = 'l', col = 0)
+  plot(1:dim(mdata_temp)[1], y_hat_temp[], xaxs = "i", ylab = 'y test', main = '', type = 'l', col = 0)
   for (k in 1:K) {
     for (m in round(seq(from = 1, to = M, length.out = M))) {
       lines(phi_pred_p[, k, m], col = alpha(k, 0.1), pch = '.', lty = 1)
     }
   }
-  lines(1:dim(mydata_temp)[1], y_hat_temp, xaxs = "i", col = 9, ylab = 'y test', main = '', lwd = 3)
+  lines(1:dim(mdata_temp)[1], y_hat_temp, xaxs = "i", col = 9, ylab = 'y test', main = '', lwd = 3)
   #abline(h=0,lty=3,lwd=0.5)
   title('Predictions', 2)
-  lines(1:dim(mydata_temp)[1], mydata_temp[, 1], xaxs = "i", col = 11, ylab = 'y test', main = '', lwd = 3)
+  lines(1:dim(mdata_temp)[1], mdata_temp[, 1], xaxs = "i", col = 11, ylab = 'y test', main = '', lwd = 3)
 
   plot(phi[, k, M], col = 0)
   for (k in 1:K) {
