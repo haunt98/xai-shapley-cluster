@@ -124,7 +124,7 @@ mmetric <- 'MSE'
 mmethod <- 'rf' # Which regression model to use
 
 prediction_accuracy <- TRUE
-global_classification <- TRUE
+global_classification <- FALSE
 
 K <- 5 # Number of clusters
 N <- 100 * K * 4 # Number of datapoints
@@ -313,7 +313,7 @@ set.seed(7)
 log_info("Calculating Shapley values for each cluster")
 for (k in 1:K) {
   log_info("Cluster {k}")
-  pb <- txtProgressBar(min = 0, max = M, style = 3)
+  pb <- txtProgressBar(min = 0, max = M, style = 3, width = 50)
   for (m in 1:M) {
     cluster_permutation <- matrix(sample(1:K), nrow = 1)
     # print(cluster_permutation)
