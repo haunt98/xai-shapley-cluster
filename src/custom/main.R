@@ -190,17 +190,9 @@ if (global_classification) {
 M <- 250
 
 # Split data into K clusters
-mdata_train_k <- array(NA, dim = c(K_train, J + 1, K))
-mdata_test_k <- array(NA, dim = c(K_test, J + 1, K))
-mdata_eval_k <- array(NA, dim = c(K_eval, J + 1, K))
-
+mdata_train_k <- list()
 for (k in 1:K) {
-  # y, x1, x2, x3, x4
-  for (j in 1:(J + 1)) {
-    mdata_train_k[, j, k] <- mdata_train[(K_train * (k - 1) + 1):(K_train * k), j]
-    mdata_test_k[, j, k] <- mdata_test[(K_test * (k - 1) + 1):(K_test * k), j]
-    mdata_eval_k[, j, k] <- mdata_eval[(K_eval * (k - 1) + 1):(K_eval * k), j]
-  }
+  mdata_train_k[[k]] <- mdata_train[(K_train * (k - 1) + 1):(K_train * k), , drop = FALSE]
 }
 
 set.seed(7)

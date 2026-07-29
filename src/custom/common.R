@@ -102,18 +102,12 @@ fn_shapley_cluster_global_classification <- function(
 
       cluster_position <- which(cluster_permutation == k)
       # D+
-      data_train_p <- R.utils::wrap(
-        data_train_k[,, cluster_permutation[1:cluster_position]],
-        map = list(NA, 2)
-      )
+      data_train_p <- do.call(rbind, data_train_k[cluster_permutation[1:cluster_position]])
       # D-
       if (cluster_position == 1) {
         data_train_m <- NULL
       } else {
-        data_train_m <- R.utils::wrap(
-          data_train_k[,, cluster_permutation[1:(cluster_position - 1)]],
-          map = list(NA, 2)
-        )
+        data_train_m <- do.call(rbind, data_train_k[cluster_permutation[1:(cluster_position - 1)]])
       }
 
       # v = accuracy
@@ -160,18 +154,12 @@ fn_shapley_cluster <- function(
 
       cluster_position <- which(cluster_permutation == k)
       # D+
-      data_train_p <- R.utils::wrap(
-        data_train_k[,, cluster_permutation[1:cluster_position]],
-        map = list(NA, 2)
-      )
+      data_train_p <- do.call(rbind, data_train_k[cluster_permutation[1:cluster_position]])
       # D-
       if (cluster_position == 1) {
         data_train_m <- NULL
       } else {
-        data_train_m <- R.utils::wrap(
-          data_train_k[,, cluster_permutation[1:(cluster_position - 1)]],
-          map = list(NA, 2)
-        )
+        data_train_m <- do.call(rbind, data_train_k[cluster_permutation[1:(cluster_position - 1)]])
       }
 
       if (prediction_accuracy) {
