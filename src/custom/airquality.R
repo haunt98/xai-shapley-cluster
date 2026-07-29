@@ -1,14 +1,35 @@
+library(R.utils)
 library(logger)
+library(optparse)
+
 
 source("src/custom/common.R")
 
 log_info("XAI Shapley Cluster - Airquality Dataset")
+
+# Init
+mmethod <- 'rf' # Which regression model to use
+
+option_list <- list(
+  make_option(
+    c("--prediction-accuracy"),
+    type = "logical",
+    default = TRUE,
+    help = "Use prediction accuracy [default %default]"
+  )
+)
+opt <- parse_args(OptionParser(option_list = option_list))
+
+prediction_accuracy <- opt$`prediction-accuracy`
+log_info("prediction_accuracy: {prediction_accuracy}")
+
 
 # Load airquality dataset
 data(airquality)
 
 # Remove incomplete cases
 airquality <- airquality[complete.cases(airquality), ]
+write.csv(airquality, "datasets/airquality.csv", row.names = TRUE)
 
 # Balance clusters: subsample each month to the smallest month size
 month_labels <- sort(unique(airquality$Month))
@@ -94,9 +115,6 @@ set.seed(21)
 
 M <- 250
 
-phim <- array(NA, dim = c(N_test, K, M))
-phi <- array(NA, dim = c(N_test, K, M))
-
 # Split data into K clusters
 mdata_train_k <- array(NA, dim = c(K_train, J + 1, K))
 mdata_test_k <- array(NA, dim = c(K_test, J + 1, K))
@@ -112,48 +130,14 @@ for (k in 1:K) {
 
 set.seed(7)
 
-log_info("Calculating Shapley values for each cluster")
-for (k in 1:K) {
-  log_info("Cluster {k} (month {month_labels[k]})")
-  pb <- txtProgressBar(min = 0, max = M, style = 3, width = 50)
-  for (m in 1:M) {
-    cluster_permutation <- matrix(sample(1:K), nrow = 1)
-    cluster_position <- which(cluster_permutation == k)
-
-    # D+
-    data_train_p <- R.utils::wrap(
-      mdata_train_k[,, cluster_permutation[1:cluster_position]],
-      map = list(NA, 2)
-    )
-
-    # D-
-    if (cluster_position == 1) {
-      data_train_m <- NULL
-    } else {
-      data_train_m <- R.utils::wrap(
-        mdata_train_k[,, cluster_permutation[1:(cluster_position - 1)]],
-        map = list(NA, 2)
-      )
-    }
-
-    # v = (y - f(x))^2 - baseline^2  (prediction accuracy formulation)
-    # lm0 works best with small data: 3 features, no intercept, always overdetermined
-    if (cluster_position == 1) {
-      phim[, k, m] <- (mdata_test[, 1] -
-        fn_prediction(data_train = data_train_p, data_test = mdata_test, method = 'lm0'))^2 -
-        ((mdata_test[, 1] - 0))^2
-    } else {
-      phim[, k, m] <- (mdata_test[, 1] -
-        fn_prediction(data_train = data_train_p, data_test = mdata_test, method = 'lm0'))^2 -
-        (mdata_test[, 1] - fn_prediction(data_train = data_train_m, data_test = mdata_test, method = 'lm0'))^2
-    }
-
-    # Cumulative Shapley value for cluster k up to m
-    phi[, k, m] <- apply(phim[, k, ], MARGIN = 1, FUN = mean, na.rm = TRUE)
-    setTxtProgressBar(pb, m)
-  }
-  close(pb)
-}
+phi <- fn_shapley_cluster(
+  K = K,
+  M = M,
+  data_train_k = mdata_train_k,
+  data_test = mdata_test,
+  prediction_accuracy = prediction_accuracy,
+  method = 'lm0'
+)
 
 # Plot results
 selected_points <- round(seq(5, N_test - 5, length.out = 5))
