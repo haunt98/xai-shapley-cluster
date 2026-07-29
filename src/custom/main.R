@@ -24,7 +24,7 @@ log_info("XAI Shapley Cluster")
 
 
 # Init
-mmethod <- 'rf' # Which regression model to use
+mmethod <- "rf" # Which regression model to use
 
 option_list <- list(
   make_option(
@@ -169,7 +169,7 @@ if (global_classification) {
   # Plot y, x1, x2, x3, x4
   for (j in include_mdata) {
     plot(mdata_train[, j], col = col_array_train, ylab = colnames(mdata_full)[j], ylim = c(-1, 1))
-    points(X_test_pred[, j], col = 'red')
+    points(X_test_pred[, j], col = "red")
   }
 
   mtext("Compare train data with AAKR predictions", side = 3, line = -1.5, outer = TRUE)
@@ -180,7 +180,7 @@ if (global_classification) {
   # Plot y, x1, x2, x3, x4
   for (j in include_mdata) {
     plot(mdata_test[, j], col = col_array_train, ylab = colnames(mdata_full)[j], ylim = c(-1, 1))
-    points(X_test_pred[, j], col = 'red')
+    points(X_test_pred[, j], col = "red")
   }
 
   mtext("Compare test data with AAKR predictions", side = 3, line = -1.5, outer = TRUE)
