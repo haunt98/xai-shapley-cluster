@@ -12,11 +12,6 @@ fn_prediction <- function(data_train, data_test, method, ntree = 100, maxnodes =
     fit <- lm(formula = y ~ x, data = data.frame(y = data_train[, 1], x = I(as.matrix(data_train[, -1]))))
     pred <- predict.lm(fit, newdata = data.frame(x = I(as.matrix(data_test[, -1]))))
   }
-  if (method == "lm0") {
-    # Linear regression without intercept
-    fit <- lm(formula = y ~ x + 0, data = data.frame(y = data_train[, 1], x = I(as.matrix(data_train[, -1]))))
-    pred <- predict.lm(fit, newdata = data.frame(x = I(as.matrix(data_test[, -1]))))
-  }
   if (method == "knn") {
     # 1-nearest neighbor
     fit <- knn.reg(train = data_train[, -1], test = data_test[, -1], y = data_train[, 1], k = 1, algorithm = "kd_tree")

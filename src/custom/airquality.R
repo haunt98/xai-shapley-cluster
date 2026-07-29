@@ -97,7 +97,7 @@ mtext("Train data (airquality)", side = 3, line = -1.5, outer = TRUE)
 
 set.seed(21)
 
-M <- 250
+M <- 100
 
 # Split data into K clusters
 mdata_train_k <- lapply(seq_len(K), function(k) {
@@ -133,7 +133,7 @@ plot(
   xlim = c(1, M),
   ylim = range(global_phi, na.rm = TRUE),
   xlab = "Number of iterations (M)",
-  ylab = "Global Shapley values for each cluster",
+  ylab = "Global Shapley values (airquality)",
 )
 for (cluster_index in 2:K) {
   lines(seq_len(M), global_phi[cluster_index, ], col = cluster_index, lwd = 2)
@@ -147,11 +147,8 @@ legend(
   lwd = 2
 )
 
-# Pick middle test point of each cluster
-offsets_test <- c(0, cumsum(month_sizes_test[-K]))
-selected_points <- sapply(seq_len(K), function(k) {
-  offsets_test[k] + ceiling(month_sizes_test[k] / 2)
-})
+# Pick 4 equally distributed test points
+selected_points <- round(seq(1, N_test, length.out = 6))[2:5]
 full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
 
 if (!prediction_accuracy) {
@@ -204,4 +201,4 @@ for (point_index in selected_points) {
   box()
 }
 
-mtext(plot_title, side = 3, line = -11.5, outer = TRUE)
+mtext(plot_title, side = 3, line = -7.5, outer = TRUE)

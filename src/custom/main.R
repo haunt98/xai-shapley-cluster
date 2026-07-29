@@ -229,7 +229,7 @@ plot(
   xlim = c(1, M),
   ylim = range(global_phi, na.rm = TRUE),
   xlab = "Number of iterations (M)",
-  ylab = "Global Shapley values for each cluster",
+  ylab = "Global Shapley values",
 )
 for (cluster_index in 2:K) {
   lines(seq_len(M), global_phi[cluster_index, ], col = cluster_index, lwd = 2)
