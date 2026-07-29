@@ -30,6 +30,7 @@ data("BostonHousing2", package = "mlbench")
 
 # Remove incomplete cases
 BostonHousing2 <- BostonHousing2[complete.cases(BostonHousing2), ]
+write.csv(BostonHousing2, "datasets/BostonHousing2.csv", row.names = TRUE)
 
 # Convert chas factor to numeric
 BostonHousing2$chas <- as.numeric(BostonHousing2$chas) - 1
@@ -96,11 +97,13 @@ for (k in 1:K) {
 }
 
 par(mar = c(2, 5, 2, 2))
-par(mfrow = c(length(include_mdata), 1))
 
-feature_names <- c("medv", "crim", "zn", "indus", "chas", "nox", "rm", "age", "dis", "tax", "ptratio", "b", "lstat")
-for (j in include_mdata) {
-  plot(mdata_train[, j], col = col_array_train, ylab = feature_names[j])
+plot_indices <- c(2, 3, 4) # x1, x2, x3
+par(mfrow = c(length(plot_indices), 1))
+
+feature_names <- c("crim", "zn", "indus")
+for (j in seq_along(plot_indices)) {
+  plot(mdata_train[, plot_indices[j]], col = col_array_train, ylab = feature_names[j])
 }
 
 mtext("Train data (BostonHousing2)", side = 3, line = -1.5, outer = TRUE)
