@@ -41,10 +41,12 @@ mdata_full <- cbind(
   x1 = airquality$Solar.R,
   x2 = airquality$Wind,
   x3 = airquality$Temp,
-  xS = airquality$Month
+  xS = airquality$Month,
+  day = airquality$Day
 )
 include_mdata <- c(1, 2, 3, 4) # y, x1, x2, x3
 index_mdata_xS <- 5 # xS
+index_mdata_day <- 6 # day
 
 set.seed(19)
 
@@ -58,8 +60,9 @@ test_idx <- shuffled_idx[(half + 1):n]
 mdata_train_full <- mdata_full[train_idx, ]
 mdata_test_full <- mdata_full[test_idx, ]
 
-# Sort training data by cluster labels
-mdata_train_full <- mdata_train_full[order(mdata_train_full[, index_mdata_xS]), ]
+# Sort data by cluster labels, then by day within each cluster
+mdata_train_full <- mdata_train_full[order(mdata_train_full[, index_mdata_xS], mdata_train_full[, index_mdata_day]), ]
+mdata_test_full <- mdata_test_full[order(mdata_test_full[, index_mdata_xS], mdata_test_full[, index_mdata_day]), ]
 
 # mdata is mdata_full without the cluster labels (xS)
 mdata_train <- mdata_train_full[, include_mdata]
@@ -68,8 +71,9 @@ mdata_test <- mdata_test_full[, include_mdata]
 N_train <- nrow(mdata_train)
 N_test <- nrow(mdata_test)
 
-# Per cluster sizes in data train
+# Per cluster sizes in data p
 month_sizes_train <- as.vector(table(mdata_train_full[, index_mdata_xS]))
+month_sizes_test <- as.vector(table(mdata_test_full[, index_mdata_xS]))
 
 
 # Plot train data
@@ -94,7 +98,7 @@ set.seed(21)
 
 M <- 250
 
-# Split data into K clusters as a list (each cluster has different size)
+# Split data into K clusters
 mdata_train_k <- lapply(seq_len(K), function(k) {
   idx <- (offsets_train[k] + 1):(offsets_train[k] + month_sizes_train[k])
   mdata_train[idx, , drop = FALSE]
@@ -111,8 +115,11 @@ phi <- fn_shapley_cluster(
   method = mmethod
 )
 
-# Plot results
-selected_points <- round(seq(5, N_test - 5, length.out = 5))
+# Pick middle test point of each cluster
+offsets_test <- c(0, cumsum(month_sizes_test[-K]))
+selected_points <- sapply(seq_len(K), function(k) {
+  offsets_test[k] + ceiling(month_sizes_test[k] / 2)
+})
 full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
 
 plotted_value <- (full_prediction - mdata_test[, 1])^2
