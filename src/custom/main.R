@@ -1,6 +1,6 @@
 library(R.utils)
-library(optparse)
 library(logger)
+library(optparse)
 
 source("src/custom/common.R")
 
