@@ -84,9 +84,8 @@ mdata_train_full <- mdata_full[1:(floor(N_train)), ]
 mdata_test_full <- mdata_full[(floor(N_train) + 1):(floor(N_train) + floor(N_test)), ]
 mdata_eval_full <- mdata_full[(floor(N_train) + floor(N_test) + 1):(floor(N)), ]
 
-# Sort training data by cluster labels
-segment_rule <- order((mdata_train_full[, index_mdata_xS]))
-mdata_train_full <- mdata_train_full[segment_rule, ]
+# Sort data by cluster labels
+mdata_train_full <- mdata_train_full[order((mdata_train_full[, index_mdata_xS])), ]
 
 # mdata is mdata_full without the cluster labels (xS)
 mdata <- rbind(mdata_train_full, mdata_test_full, mdata_eval_full)
