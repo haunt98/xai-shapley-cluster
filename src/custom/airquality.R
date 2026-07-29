@@ -7,6 +7,7 @@ source("src/custom/common.R")
 
 log_info("XAI Shapley Cluster - Airquality Dataset")
 
+
 # Init
 mmethod <- "lm0" # Which regression model to use
 
@@ -22,7 +23,6 @@ opt <- parse_args(OptionParser(option_list = option_list))
 
 prediction_accuracy <- opt$`prediction-accuracy`
 log_info("prediction_accuracy: {prediction_accuracy}")
-
 
 # Load airquality dataset
 data(airquality)
@@ -113,6 +113,37 @@ phi <- fn_shapley_cluster(
   data_test = mdata_test,
   prediction_accuracy = prediction_accuracy,
   method = mmethod
+)
+
+# Global Shapley values for each cluster
+# phi has dimensions (N_test, K, M)
+global_phi <- apply(phi, MARGIN = c(2, 3), FUN = mean, na.rm = TRUE)
+
+
+# Plot convergence of Shapley values for each cluster
+par(mar = c(5, 5.5, 3, 1))
+par(mfrow = c(1, 1))
+plot(
+  seq_len(M),
+  global_phi[1, ],
+  type = "l",
+  col = 1,
+  lwd = 2,
+  xlim = c(1, M),
+  ylim = range(global_phi, na.rm = TRUE),
+  xlab = "Number of iterations (M)",
+  ylab = "Global Shapley values for each cluster",
+)
+for (cluster_index in 2:K) {
+  lines(seq_len(M), global_phi[cluster_index, ], col = cluster_index, lwd = 2)
+}
+legend(
+  "topright",
+  title = "Clusters included",
+  legend = seq_len(K),
+  col = seq_len(K),
+  lty = 1,
+  lwd = 2
 )
 
 # Pick middle test point of each cluster
