@@ -65,34 +65,32 @@ normalize <- function(X, X_base) {
 
 fn_prediction <- function(data_train, data_test, method, ntree = 100, maxnodes = 30) {
   if (method == 'lm') {
+    # Linear regression with intercept
     fit <- lm(formula = y ~ x, data = data.frame(y = data_train[, 1], x = I(as.matrix(data_train[, -1]))))
     pred <- predict.lm(fit, newdata = data.frame(x = I(as.matrix(data_test[, -1]))))
   }
   if (method == 'lm0') {
+    # Linear regression without intercept
     fit <- lm(formula = y ~ x + 0, data = data.frame(y = data_train[, 1], x = I(as.matrix(data_train[, -1]))))
     pred <- predict.lm(fit, newdata = data.frame(x = I(as.matrix(data_test[, -1]))))
   }
-  if (method == 'intercept') {
-    fit <- mean(data_train[, 1]) #lm(formula = y~x,data=data.frame(y=data_train[,1],x=I(as.matrix(0*data_train[,-1]))))
-    pred <- array(fit, dim(data_test)[1]) #predict.lm(fit,newdata =data.frame(x=I(as.matrix(data_test[,-1]))))
-  }
-  if (method == 'mybinom') {
-    fit <- mean(data_train[, 1]) #lm(formula = y~x,data=data.frame(y=data_train[,1],x=I(as.matrix(0*data_train[,-1]))))
-    pred <- rbinom(n = dim(data_test)[1], size = 1, prob = fit)
-  }
   if (method == 'knn') {
+    # 1-nearest neighbor
     fit <- knn.reg(train = data_train[, -1], test = data_test[, -1], y = data_train[, 1], k = 1, algorithm = "kd_tree")
     pred <- fit$pred
   }
   if (method == 'knn10') {
+    # 10-nearest neighbor
     fit <- knn.reg(train = data_train[, -1], test = data_test[, -1], y = data_train[, 1], k = 10, algorithm = "kd_tree")
     pred <- fit$pred
   }
   if (method == 'nnet') {
+    # Neural network with 5 hidden units
     fit <- nnet(x = data_train[, -1], y = data_train[, 1], maxit = 500, size = 5, linout = TRUE, trace = FALSE)
     pred <- predict(fit, newdata = data_test[, -1])
   }
   if (method == 'rf') {
+    # Random forest
     fit <- randomForest(x = data_train[, -1], y = data_train[, 1], ntree = ntree, maxnodes = maxnodes)
     pred <- predict(fit, newdata = matrix(data_test[, -1], ncol = dim(data_train)[2] - 1))
   }
