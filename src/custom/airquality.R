@@ -31,13 +31,9 @@ data(airquality)
 airquality <- airquality[complete.cases(airquality), ]
 write.csv(airquality, "datasets/airquality.csv", row.names = TRUE)
 
-# Clusters by month, keep original sizes (no balancing)
+# Clusters by month
 month_labels <- sort(unique(airquality$Month))
 K <- length(month_labels)
-
-# Sort by Month so rows are contiguous per cluster
-airquality <- airquality[order(airquality$Month), ]
-month_sizes <- as.vector(table(airquality$Month))
 
 # Build data matrix: y, x1, x2, x3, xS (month)
 mdata_full <- cbind(
@@ -50,37 +46,38 @@ mdata_full <- cbind(
 include_mdata <- c(1, 2, 3, 4) # y, x1, x2, x3
 index_mdata_xS <- 5 # xS
 
-# Per-cluster split: first 4 rows per month for train, rest for eval
-K_train <- 4
+set.seed(19)
 
-offsets <- c(0, cumsum(month_sizes[-K]))
+# Split data into train and test
+n <- nrow(mdata_full)
+shuffled_idx <- sample(n)
+half <- floor(n / 2)
+train_idx <- shuffled_idx[1:half]
+test_idx <- shuffled_idx[(half + 1):n]
 
-train_indices <- unlist(lapply(seq_len(K), function(k) {
-  offsets[k] + seq_len(K_train)
-}))
-test_indices <- unlist(lapply(seq_len(K), function(k) {
-  offsets[k] + (K_train + 1):month_sizes[k]
-}))
+mdata_train_full <- mdata_full[train_idx, ]
+mdata_test_full <- mdata_full[test_idx, ]
 
-mdata_train_full <- mdata_full[train_indices, ]
-mdata_test_full <- mdata_full[test_indices, ]
+# Sort training data by cluster labels
+mdata_train_full <- mdata_train_full[order(mdata_train_full[, index_mdata_xS]), ]
 
-# mdata without cluster labels
-mdata <- rbind(mdata_train_full, mdata_test_full)
-mdata <- mdata[, include_mdata]
+# mdata is mdata_full without the cluster labels (xS)
+mdata_train <- mdata_train_full[, include_mdata]
+mdata_test <- mdata_test_full[, include_mdata]
 
-mdata_train <- mdata[1:length(train_indices), ]
-mdata_test <- mdata[(length(train_indices) + 1):(length(train_indices) + length(test_indices)), ]
+N_train <- nrow(mdata_train)
+N_test <- nrow(mdata_test)
 
-N_train <- dim(mdata_train)[1]
-N_test <- dim(mdata_test)[1]
+# Per cluster sizes in data train
+month_sizes_train <- as.vector(table(mdata_train_full[, index_mdata_xS]))
 
-J <- dim(mdata)[2] - 1 # number of features (3: Solar.R, Wind, Temp)
 
 # Plot train data
 col_array_train <- array(NA, N_train)
+offsets_train <- c(0, cumsum(month_sizes_train[-K]))
 for (k in 1:K) {
-  col_array_train[(K_train * (k - 1) + 1):(K_train * k)] <- rep(k, K_train)
+  idx <- (offsets_train[k] + 1):(offsets_train[k] + month_sizes_train[k])
+  col_array_train[idx] <- k
 }
 
 par(mar = c(2, 5, 2, 2))
@@ -90,6 +87,7 @@ feature_names <- c("Ozone", "Solar.R", "Wind", "Temp")
 for (j in include_mdata) {
   plot(mdata_train[, j], col = col_array_train, ylab = feature_names[j])
 }
+
 mtext("Train data (airquality)", side = 3, line = -1.5, outer = TRUE)
 
 set.seed(21)
@@ -98,7 +96,8 @@ M <- 250
 
 # Split data into K clusters as a list (each cluster has different size)
 mdata_train_k <- lapply(seq_len(K), function(k) {
-  mdata_train[(K_train * (k - 1) + 1):(K_train * k), , drop = FALSE]
+  idx <- (offsets_train[k] + 1):(offsets_train[k] + month_sizes_train[k])
+  mdata_train[idx, , drop = FALSE]
 })
 
 set.seed(7)
