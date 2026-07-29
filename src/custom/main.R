@@ -57,7 +57,6 @@ N_eval <- N / 2
 
 set.seed(2)
 
-
 # Data generation
 x1 <- sin(seq(1, 2 * 2.4 * pi, length.out = N)) + rnorm(N, 0, 0.1)
 x2 <- sin(seq(1, 2 * 20.45 * pi, length.out = N)) + rnorm(N, 0, 0.1)
@@ -212,35 +211,39 @@ if (global_classification) {
   )
 }
 
-if (global_classification) {
-  # Accuracy is global, so each row of phi is identical then use the first one.
-  global_phi <- phi[1, , ]
+# Global Shapley values for each cluster
+# phi has dimensions (N_test, K, M)
+global_phi <- apply(phi, MARGIN = c(2, 3), FUN = mean, na.rm = TRUE)
+print(global_phi)
 
-  par(mar = c(5, 5.5, 3, 1))
-  par(mfrow = c(1, 1))
-  plot(
-    seq_len(M),
-    global_phi[1, ],
-    type = "l",
-    col = 1,
-    lwd = 2,
-    xlim = c(1, M),
-    ylim = range(global_phi, na.rm = TRUE),
-    xlab = "Number of iterations (M)",
-    ylab = "Shapley values for explaining accuracy",
-  )
-  for (cluster_index in 2:K) {
-    lines(seq_len(M), global_phi[cluster_index, ], col = cluster_index, lwd = 2)
-  }
-  legend(
-    "topright",
-    title = "Clusters included",
-    legend = seq_len(K),
-    col = seq_len(K),
-    lty = 1,
-    lwd = 2
-  )
-} else {
+
+# Plot convergence of Shapley values for each cluster
+par(mar = c(5, 5.5, 3, 1))
+par(mfrow = c(1, 1))
+plot(
+  seq_len(M),
+  global_phi[1, ],
+  type = "l",
+  col = 1,
+  lwd = 2,
+  xlim = c(1, M),
+  ylim = range(global_phi, na.rm = TRUE),
+  xlab = "Number of iterations (M)",
+  ylab = "Global Shapley values for each cluster",
+)
+for (cluster_index in 2:K) {
+  lines(seq_len(M), global_phi[cluster_index, ], col = cluster_index, lwd = 2)
+}
+legend(
+  "topright",
+  title = "Clusters included",
+  legend = seq_len(K),
+  col = seq_len(K),
+  lty = 1,
+  lwd = 2
+)
+
+if (!global_classification) {
   selected_points <- c(50, 150, 250, 350, 450)
   full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
 
