@@ -31,20 +31,33 @@ data("BostonHousing2", package = "mlbench")
 # Remove incomplete cases
 BostonHousing2 <- BostonHousing2[complete.cases(BostonHousing2), ]
 
+# Convert chas factor to numeric
+BostonHousing2$chas <- as.numeric(BostonHousing2$chas) - 1
+
 # Clusters by rad (index of accessibility to radial highways)
 rad_labels <- sort(unique(BostonHousing2$rad))
 K <- length(rad_labels)
 
-# Build data matrix: y, x1, x2, x3, xS (rad)
+# Build data matrix: y, x1..x12 (all predictors), xS (rad)
 mdata_full <- cbind(
   y = BostonHousing2$medv,
-  x1 = BostonHousing2$rm,
-  x2 = BostonHousing2$lstat,
-  x3 = BostonHousing2$crim,
+  x1 = BostonHousing2$crim,
+  x2 = BostonHousing2$zn,
+  x3 = BostonHousing2$indus,
+  x4 = BostonHousing2$chas,
+  x5 = BostonHousing2$nox,
+  x6 = BostonHousing2$rm,
+  x7 = BostonHousing2$age,
+  x8 = BostonHousing2$dis,
+  x9 = BostonHousing2$tax,
+  x10 = BostonHousing2$ptratio,
+  x11 = BostonHousing2$b,
+  x12 = BostonHousing2$lstat,
   xS = BostonHousing2$rad
 )
-include_mdata <- c(1, 2, 3, 4) # y, x1, x2, x3
-index_mdata_xS <- 5 # xS
+n_features <- 12
+include_mdata <- seq_len(n_features + 1) # y + all predictors
+index_mdata_xS <- n_features + 2 # xS
 
 set.seed(19)
 
@@ -85,7 +98,7 @@ for (k in 1:K) {
 par(mar = c(2, 5, 2, 2))
 par(mfrow = c(length(include_mdata), 1))
 
-feature_names <- c("medv", "rm", "lstat", "crim")
+feature_names <- c("medv", "crim", "zn", "indus", "chas", "nox", "rm", "age", "dis", "tax", "ptratio", "b", "lstat")
 for (j in include_mdata) {
   plot(mdata_train[, j], col = col_array_train, ylab = feature_names[j])
 }
