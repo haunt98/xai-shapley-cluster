@@ -29,7 +29,7 @@ data(airquality)
 
 # Remove incomplete cases
 airquality <- airquality[complete.cases(airquality), ]
-write.csv(airquality, "datasets/airquality.csv", row.names = TRUE)
+# write.csv(airquality, "datasets/airquality.csv", row.names = TRUE)
 
 # Clusters by month
 month_labels <- sort(unique(airquality$Month))
