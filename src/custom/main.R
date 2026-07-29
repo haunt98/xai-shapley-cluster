@@ -106,9 +106,6 @@ K_train <- floor(N_train / K)
 K_test <- floor(N_test / K)
 K_eval <- floor(N_eval / K)
 
-# dim(mdata)[2] is y, x1, x2, x3, x4
-# J is 4 - the number of features (x1, x2, x3, x4)
-J <- dim(mdata)[2] - 1
 
 # Plot train data
 # Assign colors to each cluster for training data
