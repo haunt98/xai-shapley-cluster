@@ -122,8 +122,13 @@ selected_points <- sapply(seq_len(K), function(k) {
 })
 full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
 
-plotted_value <- (full_prediction - mdata_test[, 1])^2
-plot_title <- "Squared Error (airquality)"
+if (!prediction_accuracy) {
+  plotted_value <- full_prediction
+  plot_title <- "Predictions (airquality)"
+} else {
+  plotted_value <- (full_prediction - mdata_test[, 1])^2
+  plot_title <- "Squared Error (airquality)"
+}
 
 par(mar = c(3, 3, 2, 2) * .7)
 n_cols <- length(selected_points)
@@ -141,20 +146,20 @@ layout(
   respect = TRUE
 )
 
-# Top: squared error
+# Top: full prediction or squared error
 plot(seq_along(plotted_value), plotted_value, xaxs = "i", main = "", type = "l", col = 11, lwd = 3)
 for (point_index in selected_points) {
   points(point_index, plotted_value[point_index], pch = 16, cex = 1.5, col = 9)
   abline(v = point_index, lty = 2)
 }
 
-# Middle: local Shapley values (final iteration)
+# Middle: local Shapley values for each selected point
 for (point_index in selected_points) {
-  barplot(phi[point_index, , M], horiz = TRUE, col = seq_len(K), main = paste("Month", month_labels))
+  barplot(phi[point_index, , M], horiz = TRUE, col = seq_len(K), main = "")
   box()
 }
 
-# Bottom: convergence
+# Bottom: convergence of Shapley values for each selected point
 for (point_index in selected_points) {
   point_phi <- phi[point_index, , , drop = FALSE]
   plot(NA, xlim = c(1, M), ylim = range(point_phi, na.rm = TRUE), xlab = "", ylab = "", axes = FALSE)

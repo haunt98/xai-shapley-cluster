@@ -23,3 +23,15 @@ part_2:
     rm -rf ./figures/part_2
     mkdir -p ./figures/part_2
     pdftoppm -png -r 300 ./Rplots.pdf ./figures/part_2/page
+
+part_3:
+    Rscript ./src/custom/airquality.R --prediction-accuracy false
+    rm -rf ./figures/part_3
+    mkdir -p ./figures/part_3
+    pdftoppm -png -r 300 ./Rplots.pdf ./figures/part_3/page
+
+part_4:
+    Rscript ./src/custom/airquality.R --prediction-accuracy true
+    rm -rf ./figures/part_4
+    mkdir -p ./figures/part_4
+    pdftoppm -png -r 300 ./Rplots.pdf ./figures/part_4/page
