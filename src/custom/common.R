@@ -5,6 +5,8 @@ require(nnet)
 require(randomForest)
 
 fn_prediction <- function(data_train, data_test, method, ntree = 100, maxnodes = 30) {
+  # fit: Train the model using data_train and method
+  # pred: Predict output for data_test
   if (method == "lm") {
     # Linear regression with intercept
     fit <- lm(formula = y ~ x, data = data.frame(y = data_train[, 1], x = I(as.matrix(data_train[, -1]))))
