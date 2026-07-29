@@ -88,13 +88,12 @@ mdata_eval <- mdata[(N_train + 1):(N_train + N_eval), ]
 N_train <- dim(mdata_train)[1]
 N_eval <- dim(mdata_eval)[1]
 
-# test = train
-mdata_test <- mdata_train
-N_test <- N_train
+mdata_test <- mdata_eval
+N_test <- N_eval
 
 J <- dim(mdata)[2] - 1 # number of features (3: Solar.R, Wind, Temp)
 
-K_test <- K_train
+K_test <- K_eval
 
 # Plot train data
 col_array_train <- array(NA, N_train)
