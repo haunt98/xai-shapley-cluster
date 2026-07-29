@@ -215,7 +215,6 @@ if (global_classification) {
 # Global Shapley values for each cluster
 # phi has dimensions (N_test, K, M)
 global_phi <- apply(phi, MARGIN = c(2, 3), FUN = mean, na.rm = TRUE)
-print(global_phi)
 
 
 # Plot convergence of Shapley values for each cluster
