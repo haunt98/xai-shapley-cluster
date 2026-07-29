@@ -53,7 +53,7 @@ N <- 100 * K * 4 # Number of datapoints
 
 N_train <- N / 4
 N_test <- N / 4
-N_eval <- N / 2
+N_eval <- N / 2 # Do nothing for now
 
 set.seed(2)
 
@@ -122,6 +122,7 @@ for (j in include_mdata) {
 }
 
 mtext("Train data", side = 3, line = -1.5, outer = TRUE)
+
 
 set.seed(21)
 
