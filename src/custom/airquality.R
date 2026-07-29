@@ -31,74 +31,56 @@ data(airquality)
 airquality <- airquality[complete.cases(airquality), ]
 write.csv(airquality, "datasets/airquality.csv", row.names = TRUE)
 
-# Balance clusters: subsample each month to the smallest month size
+# Clusters by month, keep original sizes (no balancing)
 month_labels <- sort(unique(airquality$Month))
 K <- length(month_labels)
 
-month_counts <- table(airquality$Month)
-min_count <- min(month_counts)
-
-set.seed(2)
-balanced <- do.call(
-  rbind,
-  lapply(month_labels, function(m) {
-    subset <- airquality[airquality$Month == m, ]
-    subset[sample(nrow(subset), min_count), ]
-  })
-)
-
 # Sort by Month so rows are contiguous per cluster
-balanced <- balanced[order(balanced$Month), ]
+airquality <- airquality[order(airquality$Month), ]
+month_sizes <- as.vector(table(airquality$Month))
 
 # Build data matrix: y, x1, x2, x3, xS (month)
 mdata_full <- cbind(
-  y = balanced$Ozone,
-  x1 = balanced$Solar.R,
-  x2 = balanced$Wind,
-  x3 = balanced$Temp,
-  xS = balanced$Month
+  y = airquality$Ozone,
+  x1 = airquality$Solar.R,
+  x2 = airquality$Wind,
+  x3 = airquality$Temp,
+  xS = airquality$Month
 )
 include_mdata <- c(1, 2, 3, 4) # y, x1, x2, x3
 index_mdata_xS <- 5 # xS
 
-# Per-cluster split: first 4 rows per month for train, last 5 for eval
+# Per-cluster split: first 4 rows per month for train, rest for eval
 K_train <- 4
-K_eval <- min_count - K_train
 
-N_train <- K_train * K
-N_eval <- K_eval * K
+offsets <- c(0, cumsum(month_sizes[-K]))
 
-train_indices <- as.vector(sapply(seq_len(K), function(k) {
-  ((k - 1) * min_count + 1):((k - 1) * min_count + K_train)
+train_indices <- unlist(lapply(seq_len(K), function(k) {
+  offsets[k] + seq_len(K_train)
 }))
-eval_indices <- as.vector(sapply(seq_len(K), function(k) {
-  ((k - 1) * min_count + K_train + 1):(k * min_count)
+test_indices <- unlist(lapply(seq_len(K), function(k) {
+  offsets[k] + (K_train + 1):month_sizes[k]
 }))
 
 mdata_train_full <- mdata_full[train_indices, ]
-mdata_eval_full <- mdata_full[eval_indices, ]
+mdata_test_full <- mdata_full[test_indices, ]
 
 # mdata without cluster labels
-mdata <- rbind(mdata_train_full, mdata_eval_full)
+mdata <- rbind(mdata_train_full, mdata_test_full)
 mdata <- mdata[, include_mdata]
 
-mdata_train <- mdata[1:N_train, ]
-mdata_eval <- mdata[(N_train + 1):(N_train + N_eval), ]
+mdata_train <- mdata[1:length(train_indices), ]
+mdata_test <- mdata[(length(train_indices) + 1):(length(train_indices) + length(test_indices)), ]
 
 N_train <- dim(mdata_train)[1]
-N_eval <- dim(mdata_eval)[1]
-
-mdata_test <- mdata_eval
-N_test <- N_eval
+N_test <- dim(mdata_test)[1]
 
 J <- dim(mdata)[2] - 1 # number of features (3: Solar.R, Wind, Temp)
-
-K_test <- K_eval
 
 # Plot train data
 col_array_train <- array(NA, N_train)
 for (k in 1:K) {
-  col_array_train[((k - 1) * K_train + 1):(K_train * k)] <- rep(k, K_train)
+  col_array_train[(K_train * (k - 1) + 1):(K_train * k)] <- rep(k, K_train)
 }
 
 par(mar = c(2, 5, 2, 2))
@@ -114,18 +96,10 @@ set.seed(21)
 
 M <- 250
 
-# Split data into K clusters
-mdata_train_k <- array(NA, dim = c(K_train, J + 1, K))
-mdata_test_k <- array(NA, dim = c(K_test, J + 1, K))
-mdata_eval_k <- array(NA, dim = c(K_eval, J + 1, K))
-
-for (k in 1:K) {
-  for (j in 1:(J + 1)) {
-    mdata_train_k[, j, k] <- mdata_train[(K_train * (k - 1) + 1):(K_train * k), j]
-    mdata_test_k[, j, k] <- mdata_test[(K_test * (k - 1) + 1):(K_test * k), j]
-    mdata_eval_k[, j, k] <- mdata_eval[(K_eval * (k - 1) + 1):(K_eval * k), j]
-  }
-}
+# Split data into K clusters as a list (each cluster has different size)
+mdata_train_k <- lapply(seq_len(K), function(k) {
+  mdata_train[(K_train * (k - 1) + 1):(K_train * k), , drop = FALSE]
+})
 
 set.seed(7)
 
