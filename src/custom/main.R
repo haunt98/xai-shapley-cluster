@@ -189,10 +189,6 @@ if (global_classification) {
 
 M <- 250
 
-phim <- array(NA, dim = c(N_test, K, M))
-phi <- array(NA, dim = c(N_test, K, M))
-
-
 # Split data into K clusters
 mdata_train_k <- array(NA, dim = c(K_train, J + 1, K))
 mdata_test_k <- array(NA, dim = c(K_test, J + 1, K))
@@ -209,68 +205,23 @@ for (k in 1:K) {
 
 set.seed(7)
 
-log_info("Calculating Shapley values for each cluster")
-for (k in 1:K) {
-  log_info("Cluster {k}")
-  pb <- txtProgressBar(min = 0, max = M, style = 3, width = 50)
-  for (m in 1:M) {
-    cluster_permutation <- matrix(sample(1:K), nrow = 1)
-    # print(cluster_permutation)
-
-    cluster_position <- which(cluster_permutation == k)
-    # D+
-    data_train_p <- R.utils::wrap(
-      mdata_train_k[,, cluster_permutation[1:cluster_position]],
-      map = list(NA, 2)
-    )
-    # D-
-    if (cluster_position == 1) {
-      data_train_m <- NULL
-    } else {
-      data_train_m <- R.utils::wrap(
-        mdata_train_k[,, cluster_permutation[1:(cluster_position - 1)]],
-        map = list(NA, 2)
-      )
-    }
-
-    if (global_classification) {
-      # v = accuracy
-      # accuracy(D+) - accuracy(D-)
-      if (cluster_position == 1) {
-        phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, mdata_test) - 0
-      } else {
-        phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, mdata_test) -
-          fn_accuracy(actual_states, X_train = data_train_m, mdata_test)
-      }
-    } else {
-      if (prediction_accuracy) {
-        # v = (y - f(x))^2 - y^2
-        if (cluster_position == 1) {
-          phim[, k, m] <- (mdata_test[, 1] -
-            fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod))^2 -
-            ((mdata_test[, 1] - 0))^2
-        } else {
-          phim[, k, m] <- (mdata_test[, 1] -
-            fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod))^2 -
-            (mdata_test[, 1] - fn_prediction(data_train = data_train_m, data_test = mdata_test, method = mmethod))^2
-        }
-      } else {
-        # v = f(x)
-        # prediction(D+) - prediction(D-)
-        if (cluster_position == 1) {
-          phim[, k, m] <- fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod) - 0
-        } else {
-          phim[, k, m] <- fn_prediction(data_train = data_train_p, data_test = mdata_test, method = mmethod) -
-            fn_prediction(data_train = data_train_m, data_test = mdata_test, method = mmethod)
-        }
-      }
-    }
-
-    # Shapley value for cluster k up to m
-    phi[, k, m] <- apply(phim[, k, ], MARGIN = 1, FUN = mean, na.rm = TRUE)
-    setTxtProgressBar(pb, m)
-  }
-  close(pb)
+if (global_classification) {
+  phi <- fn_shapley_cluster_global_classification(
+    K = K,
+    M = M,
+    data_train_k = mdata_train_k,
+    data_test = mdata_test,
+    actual_states = actual_states
+  )
+} else {
+  phi <- fn_shapley_cluster(
+    K = K,
+    M = M,
+    data_train_k = mdata_train_k,
+    data_test = mdata_test,
+    prediction_accuracy = prediction_accuracy,
+    method = mmethod
+  )
 }
 
 if (global_classification) {

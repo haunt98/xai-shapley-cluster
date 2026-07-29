@@ -1,3 +1,5 @@
+library(logger)
+library(progress)
 require(FNN)
 require(nnet)
 require(randomForest)
@@ -73,6 +75,134 @@ normalize <- function(X, X_base) {
     }
   }
   return(X_n)
+}
+
+fn_shapley_cluster_global_classification <- function(
+  K,
+  M,
+  data_train_k,
+  data_test,
+  actual_states
+) {
+  N_test <- dim(data_test)[1]
+  phim <- array(NA, dim = c(N_test, K, M))
+  phi <- array(NA, dim = c(N_test, K, M))
+
+  log_info("Calculating Shapley values global classification for each cluster")
+  for (k in 1:K) {
+    log_info("Cluster {k}")
+    pb <- progress_bar$new(
+      format = "[:bar] :percent :elapsed",
+      total = M,
+      clear = FALSE,
+      width = 50
+    )
+    for (m in 1:M) {
+      cluster_permutation <- matrix(sample(1:K), nrow = 1)
+
+      cluster_position <- which(cluster_permutation == k)
+      # D+
+      data_train_p <- R.utils::wrap(
+        data_train_k[,, cluster_permutation[1:cluster_position]],
+        map = list(NA, 2)
+      )
+      # D-
+      if (cluster_position == 1) {
+        data_train_m <- NULL
+      } else {
+        data_train_m <- R.utils::wrap(
+          data_train_k[,, cluster_permutation[1:(cluster_position - 1)]],
+          map = list(NA, 2)
+        )
+      }
+
+      # v = accuracy
+      # accuracy(D+) - accuracy(D-)
+      if (cluster_position == 1) {
+        phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, data_test) - 0
+      } else {
+        phim[, k, m] <- fn_accuracy(actual_states, X_train = data_train_p, data_test) -
+          fn_accuracy(actual_states, X_train = data_train_m, data_test)
+      }
+
+      # Shapley value for cluster k up to m
+      phi[, k, m] <- apply(phim[, k, ], MARGIN = 1, FUN = mean, na.rm = TRUE)
+      pb$tick()
+    }
+  }
+
+  return(phi)
+}
+
+fn_shapley_cluster <- function(
+  K,
+  M,
+  data_train_k,
+  data_test,
+  prediction_accuracy,
+  method
+) {
+  N_test <- dim(data_test)[1]
+  phim <- array(NA, dim = c(N_test, K, M))
+  phi <- array(NA, dim = c(N_test, K, M))
+
+  log_info("Calculating Shapley values for each cluster")
+  for (k in 1:K) {
+    log_info("Cluster {k}")
+    pb <- progress_bar$new(
+      format = "[:bar] :percent :elapsed",
+      total = M,
+      clear = FALSE,
+      width = 50
+    )
+    for (m in 1:M) {
+      cluster_permutation <- matrix(sample(1:K), nrow = 1)
+
+      cluster_position <- which(cluster_permutation == k)
+      # D+
+      data_train_p <- R.utils::wrap(
+        data_train_k[,, cluster_permutation[1:cluster_position]],
+        map = list(NA, 2)
+      )
+      # D-
+      if (cluster_position == 1) {
+        data_train_m <- NULL
+      } else {
+        data_train_m <- R.utils::wrap(
+          data_train_k[,, cluster_permutation[1:(cluster_position - 1)]],
+          map = list(NA, 2)
+        )
+      }
+
+      if (prediction_accuracy) {
+        # v = (y - f(x))^2 - y^2
+        if (cluster_position == 1) {
+          phim[, k, m] <- (data_test[, 1] -
+            fn_prediction(data_train = data_train_p, data_test = data_test, method = method))^2 -
+            ((data_test[, 1] - 0))^2
+        } else {
+          phim[, k, m] <- (data_test[, 1] -
+            fn_prediction(data_train = data_train_p, data_test = data_test, method = method))^2 -
+            (data_test[, 1] - fn_prediction(data_train = data_train_m, data_test = data_test, method = method))^2
+        }
+      } else {
+        # v = f(x)
+        # prediction(D+) - prediction(D-)
+        if (cluster_position == 1) {
+          phim[, k, m] <- fn_prediction(data_train = data_train_p, data_test = data_test, method = method) - 0
+        } else {
+          phim[, k, m] <- fn_prediction(data_train = data_train_p, data_test = data_test, method = method) -
+            fn_prediction(data_train = data_train_m, data_test = data_test, method = method)
+        }
+      }
+
+      # Shapley value for cluster k up to m
+      phi[, k, m] <- apply(phim[, k, ], MARGIN = 1, FUN = mean, na.rm = TRUE)
+      pb$tick()
+    }
+  }
+
+  return(phi)
 }
 
 fn_accuracy <- function(actual_states, X_train, X_test) {
