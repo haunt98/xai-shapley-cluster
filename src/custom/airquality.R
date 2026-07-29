@@ -8,7 +8,7 @@ source("src/custom/common.R")
 log_info("XAI Shapley Cluster - Airquality Dataset")
 
 # Init
-mmethod <- 'rf' # Which regression model to use
+mmethod <- "lm0" # Which regression model to use
 
 option_list <- list(
   make_option(
@@ -136,12 +136,12 @@ phi <- fn_shapley_cluster(
   data_train_k = mdata_train_k,
   data_test = mdata_test,
   prediction_accuracy = prediction_accuracy,
-  method = 'lm0'
+  method = mmethod
 )
 
 # Plot results
 selected_points <- round(seq(5, N_test - 5, length.out = 5))
-full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = 'lm0')
+full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
 
 plotted_value <- (full_prediction - mdata_test[, 1])^2
 plot_title <- "Squared Error (airquality)"
