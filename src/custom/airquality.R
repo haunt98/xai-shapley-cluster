@@ -9,7 +9,7 @@ log_info("XAI Shapley Cluster - Airquality Dataset")
 
 
 # Init
-mmethod <- "lm0" # Which regression model to use
+mmethod <- "lm" # Which regression model to use
 
 option_list <- list(
   make_option(
