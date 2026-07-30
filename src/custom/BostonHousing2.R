@@ -11,6 +11,7 @@ log_info("XAI Shapley Cluster - Boston Housing 2 Dataset")
 
 # Init
 mmethod <- "lm" # Which regression model to use
+log_info("method: {mmethod}")
 
 option_list <- list(
   make_option(
@@ -38,6 +39,7 @@ BostonHousing2$chas <- as.numeric(BostonHousing2$chas) - 1
 # Clusters by rad (index of accessibility to radial highways)
 rad_labels <- sort(unique(BostonHousing2$rad))
 K <- length(rad_labels)
+log_info("Number of clusters: {K}")
 
 # Build data matrix: y, x1..x12 (all predictors), xS (rad)
 mdata_full <- cbind(
@@ -62,7 +64,7 @@ index_mdata_xS <- n_features + 2 # xS
 
 set.seed(19)
 
-# Split data into train and test
+# Split data train test 80:20
 n <- nrow(mdata_full)
 shuffled_idx <- sample(n)
 train_size <- floor(n * 0.8)
@@ -81,7 +83,10 @@ mdata_train <- mdata_train_full[, include_mdata]
 mdata_test <- mdata_test_full[, include_mdata]
 
 N_train <- nrow(mdata_train)
+log_info("N_train: {N_train}")
+
 N_test <- nrow(mdata_test)
+log_info("N_test: {N_test}")
 
 # Per cluster sizes in data p
 rad_sizes_train <- as.vector(table(mdata_train_full[, index_mdata_xS]))
@@ -147,7 +152,7 @@ plot(
   xlim = c(1, M),
   ylim = range(global_phi, na.rm = TRUE),
   xlab = "Number of iterations (M)",
-  ylab = "Global Shapley values for each cluster",
+  ylab = "Global Shapley values (BostonHousing2)",
 )
 for (cluster_index in 2:K) {
   lines(seq_len(M), global_phi[cluster_index, ], col = cluster_index, lwd = 2)
@@ -161,11 +166,8 @@ legend(
   lwd = 2
 )
 
-# Pick middle test point of each cluster
-offsets_test <- c(0, cumsum(rad_sizes_test[-K]))
-selected_points <- sapply(seq_len(K), function(k) {
-  offsets_test[k] + ceiling(rad_sizes_test[k] / 2)
-})
+# Pick 4 equally distributed test points
+selected_points <- round(seq(1, N_test, length.out = 6))[2:5]
 full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
 
 if (!prediction_accuracy) {
@@ -218,4 +220,4 @@ for (point_index in selected_points) {
   box()
 }
 
-mtext(plot_title, side = 3, line = -11.5, outer = TRUE)
+mtext(plot_title, side = 3, line = -7.5, outer = TRUE)
