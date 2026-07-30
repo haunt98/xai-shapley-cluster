@@ -10,7 +10,7 @@ log_info("XAI Shapley Cluster - Boston Housing 2 Dataset")
 
 
 # Init
-mmethod <- "lm"
+mmethod <- "lm" # Which regression model to use
 
 option_list <- list(
   make_option(
@@ -30,7 +30,7 @@ data("BostonHousing2", package = "mlbench")
 
 # Remove incomplete cases
 BostonHousing2 <- BostonHousing2[complete.cases(BostonHousing2), ]
-write.csv(BostonHousing2, "datasets/BostonHousing2.csv", row.names = TRUE)
+# write.csv(BostonHousing2, "datasets/BostonHousing2.csv", row.names = TRUE)
 
 # Convert chas factor to numeric
 BostonHousing2$chas <- as.numeric(BostonHousing2$chas) - 1
@@ -41,7 +41,7 @@ K <- length(rad_labels)
 
 # Build data matrix: y, x1..x12 (all predictors), xS (rad)
 mdata_full <- cbind(
-  y = BostonHousing2$medv,
+  y = BostonHousing2$cmedv,
   x1 = BostonHousing2$crim,
   x2 = BostonHousing2$zn,
   x3 = BostonHousing2$indus,
@@ -65,9 +65,9 @@ set.seed(19)
 # Split data into train and test
 n <- nrow(mdata_full)
 shuffled_idx <- sample(n)
-half <- floor(n / 2)
-train_idx <- shuffled_idx[1:half]
-test_idx <- shuffled_idx[(half + 1):n]
+train_size <- floor(n * 0.8)
+train_idx <- shuffled_idx[1:train_size]
+test_idx <- shuffled_idx[(train_size + 1):n]
 
 mdata_train_full <- mdata_full[train_idx, ]
 mdata_test_full <- mdata_full[test_idx, ]
@@ -83,7 +83,7 @@ mdata_test <- mdata_test_full[, include_mdata]
 N_train <- nrow(mdata_train)
 N_test <- nrow(mdata_test)
 
-# Per cluster sizes in data
+# Per cluster sizes in data p
 rad_sizes_train <- as.vector(table(mdata_train_full[, index_mdata_xS]))
 rad_sizes_test <- as.vector(table(mdata_test_full[, index_mdata_xS]))
 
