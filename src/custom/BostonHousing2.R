@@ -1,11 +1,12 @@
 library(R.utils)
 library(logger)
 library(optparse)
+library(mlbench)
 
 
 source("src/custom/common.R")
 
-log_info("XAI Shapley Cluster - Airquality Dataset")
+log_info("XAI Shapley Cluster - Boston Housing 2 Dataset")
 
 
 # Init
@@ -25,30 +26,41 @@ opt <- parse_args(OptionParser(option_list = option_list))
 prediction_accuracy <- opt$`prediction-accuracy`
 log_info("prediction_accuracy: {prediction_accuracy}")
 
-# Load airquality dataset
-data(airquality)
+# Load BostonHousing2 dataset
+data("BostonHousing2", package = "mlbench")
 
 # Remove incomplete cases
-airquality <- airquality[complete.cases(airquality), ]
-# write.csv(airquality, "datasets/airquality.csv", row.names = TRUE)
+BostonHousing2 <- BostonHousing2[complete.cases(BostonHousing2), ]
+# write.csv(BostonHousing2, "datasets/BostonHousing2.csv", row.names = TRUE)
 
-# Clusters by month
-month_labels <- sort(unique(airquality$Month))
-K <- length(month_labels)
+# Convert chas factor to numeric
+BostonHousing2$chas <- as.numeric(BostonHousing2$chas) - 1
+
+# Clusters by rad (index of accessibility to radial highways)
+rad_labels <- sort(unique(BostonHousing2$rad))
+K <- length(rad_labels)
 log_info("Number of clusters: {K}")
 
-# Build data matrix: y, x1, x2, x3, xS (month)
+# Build data matrix: y, x1..x12 (all predictors), xS (rad)
 mdata_full <- cbind(
-  y = airquality$Ozone,
-  x1 = airquality$Solar.R,
-  x2 = airquality$Wind,
-  x3 = airquality$Temp,
-  xS = airquality$Month,
-  day = airquality$Day
+  y = BostonHousing2$cmedv,
+  x1 = BostonHousing2$crim,
+  x2 = BostonHousing2$zn,
+  x3 = BostonHousing2$indus,
+  x4 = BostonHousing2$chas,
+  x5 = BostonHousing2$nox,
+  x6 = BostonHousing2$rm,
+  x7 = BostonHousing2$age,
+  x8 = BostonHousing2$dis,
+  x9 = BostonHousing2$tax,
+  x10 = BostonHousing2$ptratio,
+  x11 = BostonHousing2$b,
+  x12 = BostonHousing2$lstat,
+  xS = BostonHousing2$rad
 )
-include_mdata <- c(1, 2, 3, 4) # y, x1, x2, x3
-index_mdata_xS <- 5 # xS
-index_mdata_day <- 6 # day
+n_features <- 12
+include_mdata <- seq_len(n_features + 1) # y + all predictors
+index_mdata_xS <- n_features + 2 # xS
 
 set.seed(19)
 
@@ -62,9 +74,9 @@ test_idx <- shuffled_idx[(train_size + 1):n]
 mdata_train_full <- mdata_full[train_idx, ]
 mdata_test_full <- mdata_full[test_idx, ]
 
-# Sort data by cluster labels, then by day within each cluster
-mdata_train_full <- mdata_train_full[order(mdata_train_full[, index_mdata_xS], mdata_train_full[, index_mdata_day]), ]
-mdata_test_full <- mdata_test_full[order(mdata_test_full[, index_mdata_xS], mdata_test_full[, index_mdata_day]), ]
+# Sort data by cluster labels
+mdata_train_full <- mdata_train_full[order(mdata_train_full[, index_mdata_xS]), ]
+mdata_test_full <- mdata_test_full[order(mdata_test_full[, index_mdata_xS]), ]
 
 # mdata is mdata_full without the cluster labels (xS)
 mdata_train <- mdata_train_full[, include_mdata]
@@ -77,34 +89,36 @@ N_test <- nrow(mdata_test)
 log_info("N_test: {N_test}")
 
 # Per cluster sizes in data p
-month_sizes_train <- as.vector(table(mdata_train_full[, index_mdata_xS]))
-month_sizes_test <- as.vector(table(mdata_test_full[, index_mdata_xS]))
+rad_sizes_train <- as.vector(table(mdata_train_full[, index_mdata_xS]))
+rad_sizes_test <- as.vector(table(mdata_test_full[, index_mdata_xS]))
 
 
 # Plot train data
 col_array_train <- array(NA, N_train)
-offsets_train <- c(0, cumsum(month_sizes_train[-K]))
+offsets_train <- c(0, cumsum(rad_sizes_train[-K]))
 for (k in 1:K) {
-  idx <- (offsets_train[k] + 1):(offsets_train[k] + month_sizes_train[k])
+  idx <- (offsets_train[k] + 1):(offsets_train[k] + rad_sizes_train[k])
   col_array_train[idx] <- k
 }
 
-par(mar = c(2, 5, 2, 2))
-par(mfrow = c(length(include_mdata), 1))
+feature_names <- c("cmedv", "crim", "zn", "indus", "chas", "nox", "rm", "age", "dis", "tax", "ptratio", "b", "lstat")
+plot_groups <- list(1:4, 5:8, 9:13)
 
-feature_names <- c("Ozone", "Solar.R", "Wind", "Temp")
-for (j in include_mdata) {
-  plot(mdata_train[, j], col = col_array_train, ylab = feature_names[j])
+for (pg in seq_along(plot_groups)) {
+  par(mar = c(2, 5, 2, 2))
+  par(mfrow = c(length(plot_groups[[pg]]), 1))
+  for (j in plot_groups[[pg]]) {
+    plot(mdata_train[, j], col = col_array_train, ylab = feature_names[j])
+  }
+  mtext("Train data (BostonHousing2)", side = 3, line = -1.5, outer = TRUE)
 }
-
-mtext("Train data (airquality)", side = 3, line = -1.5, outer = TRUE)
 
 
 M <- 250
 
 # Split data into K clusters
 mdata_train_k <- lapply(seq_len(K), function(k) {
-  idx <- (offsets_train[k] + 1):(offsets_train[k] + month_sizes_train[k])
+  idx <- (offsets_train[k] + 1):(offsets_train[k] + rad_sizes_train[k])
   mdata_train[idx, , drop = FALSE]
 })
 for (k in seq_len(K)) {
@@ -139,7 +153,7 @@ plot(
   xlim = c(1, M),
   ylim = range(global_phi, na.rm = TRUE),
   xlab = "Number of iterations (M)",
-  ylab = "Global Shapley values (airquality)",
+  ylab = "Global Shapley values (BostonHousing2)",
 )
 for (cluster_index in 2:K) {
   lines(seq_len(M), global_phi[cluster_index, ], col = cluster_index, lwd = 2)
@@ -159,10 +173,10 @@ full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_tes
 
 if (!prediction_accuracy) {
   plotted_value <- full_prediction
-  plot_title <- "Predictions (airquality)"
+  plot_title <- "Predictions (BostonHousing2)"
 } else {
   plotted_value <- (full_prediction - mdata_test[, 1])^2
-  plot_title <- "Squared Error (airquality)"
+  plot_title <- "Squared Error (BostonHousing2)"
 }
 
 par(mar = c(3, 3, 2, 2) * .7)

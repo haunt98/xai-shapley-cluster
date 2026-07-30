@@ -197,6 +197,9 @@ mdata_train_k <- list()
 for (k in 1:K) {
   mdata_train_k[[k]] <- mdata_train[(K_train * (k - 1) + 1):(K_train * k), , drop = FALSE]
 }
+for (k in seq_len(K)) {
+  log_info("Cluster {k} size: {nrow(mdata_train_k[[k]])}")
+}
 
 set.seed(7)
 
