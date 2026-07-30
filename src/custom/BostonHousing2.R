@@ -1,13 +1,16 @@
 library(R.utils)
 library(logger)
 library(optparse)
+
+library(khroma)
 library(mlbench)
 
+vibrant <- color("vibrant")
+palette(vibrant(7))
 
 source("src/custom/common.R")
 
 log_info("XAI Shapley Cluster - Boston Housing 2 Dataset")
-
 
 # Init
 mmethod <- "lm" # Which regression model to use
@@ -33,7 +36,7 @@ data("BostonHousing2", package = "mlbench")
 BostonHousing2 <- BostonHousing2[complete.cases(BostonHousing2), ]
 # write.csv(BostonHousing2, "datasets/BostonHousing2.csv", row.names = TRUE)
 
-# Convert chas factor to numeric
+# Convert factor to numeric
 BostonHousing2$chas <- as.numeric(BostonHousing2$chas) - 1
 
 # Clusters by rad (index of accessibility to radial highways)
@@ -92,7 +95,6 @@ log_info("N_test: {N_test}")
 rad_sizes_train <- as.vector(table(mdata_train_full[, index_mdata_xS]))
 rad_sizes_test <- as.vector(table(mdata_test_full[, index_mdata_xS]))
 
-
 # Plot train data
 col_array_train <- array(NA, N_train)
 offsets_train <- c(0, cumsum(rad_sizes_train[-K]))
@@ -112,7 +114,6 @@ for (pg in seq_along(plot_groups)) {
   }
   mtext("Train data (BostonHousing2)", side = 3, line = -1.5, outer = TRUE)
 }
-
 
 M <- 250
 
@@ -139,7 +140,6 @@ phi <- fn_shapley_cluster(
 # Global Shapley values for each cluster
 # phi has dimensions (N_test, K, M)
 global_phi <- apply(phi, MARGIN = c(2, 3), FUN = mean, na.rm = TRUE)
-
 
 # Plot convergence of Shapley values for each cluster
 par(mar = c(5, 5.5, 3, 1))

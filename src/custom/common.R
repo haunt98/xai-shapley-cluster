@@ -1,5 +1,6 @@
 library(logger)
 library(progress)
+
 require(FNN)
 require(nnet)
 require(randomForest)
@@ -60,7 +61,6 @@ AAKR <- function(X_test, X_train, h = .2, d2_skip = 0, y_importance = 0) {
   X_test_pred <- X_pred_n
   return(X_test_pred)
 }
-
 
 normalize <- function(X, X_base) {
   X_n <- X * 0

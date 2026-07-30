@@ -2,8 +2,6 @@ library(R.utils)
 library(logger)
 library(optparse)
 
-source("src/custom/common.R")
-
 dnvgl <- c(
   rgb(153, 214, 240, maxColorValue = 255),
   rgb(0, 53, 145, maxColorValue = 255),
@@ -20,8 +18,9 @@ dnvgl <- c(
 dnvgl <- rep(dnvgl, 5)
 palette(dnvgl)
 
-log_info("XAI Shapley Cluster")
+source("src/custom/common.R")
 
+log_info("XAI Shapley Cluster")
 
 # Init
 mmethod <- "rf" # Which regression model to use
@@ -111,7 +110,6 @@ K_train <- floor(N_train / K)
 K_test <- floor(N_test / K)
 K_eval <- floor(N_eval / K)
 
-
 # Plot train data
 # Assign colors to each cluster for training data
 # [ 1, 1, ..., 1, 2, 2, ..., 2, 3, 3, ..., 3, 4, 4, ..., 4, 5, 5, ..., 5]
@@ -129,7 +127,6 @@ for (j in include_mdata) {
 }
 
 mtext("Train data", side = 3, line = -1.5, outer = TRUE)
-
 
 set.seed(21)
 
@@ -189,7 +186,6 @@ if (global_classification) {
   mtext("Compare test data with AAKR predictions", side = 3, line = -1.5, outer = TRUE)
 }
 
-
 M <- 250
 
 # Split data into K clusters
@@ -225,7 +221,6 @@ if (global_classification) {
 # Global Shapley values for each cluster
 # phi has dimensions (N_test, K, M)
 global_phi <- apply(phi, MARGIN = c(2, 3), FUN = mean, na.rm = TRUE)
-
 
 # Plot convergence of Shapley values for each cluster
 par(mar = c(5, 5.5, 3, 1))

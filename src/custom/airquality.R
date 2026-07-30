@@ -2,11 +2,14 @@ library(R.utils)
 library(logger)
 library(optparse)
 
+library(khroma)
+
+vibrant <- color("vibrant")
+palette(vibrant(7))
 
 source("src/custom/common.R")
 
 log_info("XAI Shapley Cluster - Airquality Dataset")
-
 
 # Init
 mmethod <- "lm" # Which regression model to use
@@ -78,7 +81,6 @@ log_info("N_test: {N_test}")
 month_sizes_train <- as.vector(table(mdata_train_full[, index_mdata_xS]))
 month_sizes_test <- as.vector(table(mdata_test_full[, index_mdata_xS]))
 
-
 # Plot train data
 col_array_train <- array(NA, N_train)
 offsets_train <- c(0, cumsum(month_sizes_train[-K]))
@@ -96,7 +98,6 @@ for (j in include_mdata) {
 }
 
 mtext("Train data (airquality)", side = 3, line = -1.5, outer = TRUE)
-
 
 M <- 250
 
@@ -123,7 +124,6 @@ phi <- fn_shapley_cluster(
 # Global Shapley values for each cluster
 # phi has dimensions (N_test, K, M)
 global_phi <- apply(phi, MARGIN = c(2, 3), FUN = mean, na.rm = TRUE)
-
 
 # Plot convergence of Shapley values for each cluster
 par(mar = c(5, 5.5, 3, 1))
