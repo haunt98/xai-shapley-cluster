@@ -2,6 +2,11 @@ library(R.utils)
 library(logger)
 library(optparse)
 
+library(khroma)
+
+vibrant <- color("vibrant")
+palette(vibrant(7))
+
 source("src/custom/common.R")
 
 log_info("XAI Shapley Cluster - Bikeshare Dataset")
@@ -147,6 +152,9 @@ phi <- fn_shapley_cluster(
 # phi has dimensions (N_test, K, M)
 global_phi <- apply(phi, MARGIN = c(2, 3), FUN = mean, na.rm = TRUE)
 
+full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
+log_info("MSE: {mean((full_prediction - mdata_test[, 1])^2)}")
+
 # Plot convergence of Shapley values for each cluster
 par(mar = c(5, 5.5, 3, 1))
 par(mfrow = c(1, 1))
@@ -175,7 +183,6 @@ legend(
 
 # Pick 4 equally distributed test points
 selected_points <- round(seq(1, N_test, length.out = 6))[2:5]
-full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
 
 if (!prediction_accuracy) {
   plotted_value <- full_prediction
@@ -202,9 +209,9 @@ layout(
 )
 
 # Top: full prediction or squared error
-plot(seq_along(plotted_value), plotted_value, xaxs = "i", main = "", type = "l", col = 11, lwd = 3)
+plot(seq_along(plotted_value), plotted_value, xaxs = "i", main = "", type = "l", col = "black", lwd = 3)
 for (point_index in selected_points) {
-  points(point_index, plotted_value[point_index], pch = 16, cex = 1.5, col = 9)
+  points(point_index, plotted_value[point_index], pch = 16, cex = 1.5, col = "red")
   abline(v = point_index, lty = 2)
 }
 
