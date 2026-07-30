@@ -101,20 +101,18 @@ for (k in 1:K) {
   col_array_train[idx] <- k
 }
 
-par(mar = c(2, 5, 2, 2))
+feature_names <- c("cmedv", "crim", "zn", "indus", "chas", "nox", "rm", "age", "dis", "tax", "ptratio", "b", "lstat")
+plot_groups <- list(1:4, 5:8, 9:13)
 
-plot_indices <- c(2, 3, 4) # x1, x2, x3
-par(mfrow = c(length(plot_indices), 1))
-
-feature_names <- c("crim", "zn", "indus")
-for (j in seq_along(plot_indices)) {
-  plot(mdata_train[, plot_indices[j]], col = col_array_train, ylab = feature_names[j])
+for (pg in seq_along(plot_groups)) {
+  par(mar = c(2, 5, 2, 2))
+  par(mfrow = c(length(plot_groups[[pg]]), 1))
+  for (j in plot_groups[[pg]]) {
+    plot(mdata_train[, j], col = col_array_train, ylab = feature_names[j])
+  }
+  mtext("Train data (BostonHousing2)", side = 3, line = -1.5, outer = TRUE)
 }
 
-mtext("Train data (BostonHousing2)", side = 3, line = -1.5, outer = TRUE)
-
-
-set.seed(21)
 
 M <- 250
 
@@ -123,6 +121,9 @@ mdata_train_k <- lapply(seq_len(K), function(k) {
   idx <- (offsets_train[k] + 1):(offsets_train[k] + rad_sizes_train[k])
   mdata_train[idx, , drop = FALSE]
 })
+for (k in seq_len(K)) {
+  log_info("Cluster {k} size: {nrow(mdata_train_k[[k]])}")
+}
 
 set.seed(7)
 

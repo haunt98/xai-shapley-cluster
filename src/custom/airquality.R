@@ -107,6 +107,9 @@ mdata_train_k <- lapply(seq_len(K), function(k) {
   idx <- (offsets_train[k] + 1):(offsets_train[k] + month_sizes_train[k])
   mdata_train[idx, , drop = FALSE]
 })
+for (k in seq_len(K)) {
+  log_info("Cluster {k} size: {nrow(mdata_train_k[[k]])}")
+}
 
 set.seed(7)
 

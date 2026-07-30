@@ -43,7 +43,7 @@ part_5:
     pdftoppm -png -r 300 ./Rplots.pdf ./figures/part_5/page
 
 part_6:
-    Rscript ./src/custom/BostonHousing2.R.R --prediction-accuracy true
+    Rscript ./src/custom/BostonHousing2.R --prediction-accuracy true
     rm -rf ./figures/part_6
     mkdir -p ./figures/part_6
     pdftoppm -png -r 300 ./Rplots.pdf ./figures/part_6/page
