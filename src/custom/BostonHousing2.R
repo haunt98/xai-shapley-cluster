@@ -141,6 +141,9 @@ phi <- fn_shapley_cluster(
 # phi has dimensions (N_test, K, M)
 global_phi <- apply(phi, MARGIN = c(2, 3), FUN = mean, na.rm = TRUE)
 
+full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
+log_info("MSE: {mean((full_prediction - mdata_test[, 1])^2)}")
+
 # Plot convergence of Shapley values for each cluster
 par(mar = c(5, 5.5, 3, 1))
 par(mfrow = c(1, 1))
@@ -169,7 +172,6 @@ legend(
 
 # Pick 4 equally distributed test points
 selected_points <- round(seq(1, N_test, length.out = 6))[2:5]
-full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
 
 if (!prediction_accuracy) {
   plotted_value <- full_prediction

@@ -222,6 +222,9 @@ if (global_classification) {
 # phi has dimensions (N_test, K, M)
 global_phi <- apply(phi, MARGIN = c(2, 3), FUN = mean, na.rm = TRUE)
 
+full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
+log_info("MSE: {mean((full_prediction - mdata_test[, 1])^2)}")
+
 # Plot convergence of Shapley values for each cluster
 par(mar = c(5, 5.5, 3, 1))
 par(mfrow = c(1, 1))
@@ -250,7 +253,6 @@ legend(
 
 if (!global_classification) {
   selected_points <- c(50, 150, 250, 350, 450)
-  full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
 
   par(mar = c(3, 3, 2, 2) * .7)
   layout(
