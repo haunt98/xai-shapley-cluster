@@ -12,7 +12,7 @@ source("src/custom/common.R")
 log_info("XAI Shapley Cluster - Bikeshare Dataset")
 
 # Init
-mmethod <- "lm" # Which regression model to use
+mmethod <- "rf" # Which regression model to use
 log_info("method: {mmethod}")
 
 option_list <- list(
@@ -40,26 +40,22 @@ mnth_labels <- sort(unique(Bikeshare$mnth))
 K <- length(mnth_labels)
 log_info("Number of clusters: {K}")
 
-# Build data matrix: y, x1..x9 (all predictors), xS (mnth), days_since_2011 (for sorting)
+# Build data matrix: y, x1..x8 (all predictors), xS (mnth)
 mdata_full <- cbind(
   y = Bikeshare$bikers,
-  x1 = Bikeshare$yr,
+  x1 = Bikeshare$hr,
   x2 = Bikeshare$holiday,
   x3 = Bikeshare$weekday,
   x4 = Bikeshare$workingday,
   x5 = Bikeshare$weathersit,
   x6 = Bikeshare$temp,
-  x8 = Bikeshare$hum,
-  x9 = Bikeshare$windspeed,
-  xS = Bikeshare$mnth,
-  days_since_2011 = Bikeshare$days_since_2011,
-  hr = Bikeshare$hr
+  x7 = Bikeshare$hum,
+  x8 = Bikeshare$windspeed,
+  xS = Bikeshare$mnth
 )
-n_features <- 9
+n_features <- 8
 include_mdata <- seq_len(n_features + 1) # y + all predictors
 index_mdata_xS <- n_features + 2 # xS
-index_mdata_day <- n_features + 3 # days_since_2011
-index_mdata_hr <- n_features + 4 # hr
 
 set.seed(19)
 
@@ -73,13 +69,9 @@ test_idx <- shuffled_idx[(train_size + 1):n]
 mdata_train_full <- mdata_full[train_idx, ]
 mdata_test_full <- mdata_full[test_idx, ]
 
-# Sort data by cluster labels, then by day, then by hour within each cluster
-mdata_train_full <- mdata_train_full[
-  order(mdata_train_full[, index_mdata_xS], mdata_train_full[, index_mdata_day], mdata_train_full[, index_mdata_hr]),
-]
-mdata_test_full <- mdata_test_full[
-  order(mdata_test_full[, index_mdata_xS], mdata_test_full[, index_mdata_day], mdata_test_full[, index_mdata_hr]),
-]
+# Sort data by cluster labels
+mdata_train_full <- mdata_train_full[order(mdata_train_full[, index_mdata_xS]), ]
+mdata_test_full <- mdata_test_full[order(mdata_test_full[, index_mdata_xS]), ]
 
 # mdata is mdata_full without the cluster labels (xS)
 mdata_train <- mdata_train_full[, include_mdata]
@@ -105,17 +97,16 @@ for (k in 1:K) {
 
 feature_names <- c(
   "bikers",
-  "yr",
+  "hr",
   "holiday",
   "weekday",
   "workingday",
   "weathersit",
   "temp",
-  "atemp",
   "hum",
   "windspeed"
 )
-plot_groups <- list(1:4, 5:8, 9:10)
+plot_groups <- list(1:3, 4:6, 7:9)
 
 for (pg in seq_along(plot_groups)) {
   par(mar = c(2, 5, 2, 2))
