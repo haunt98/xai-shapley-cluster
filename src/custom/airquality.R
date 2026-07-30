@@ -100,8 +100,6 @@ for (j in include_mdata) {
 mtext("Train data (airquality)", side = 3, line = -1.5, outer = TRUE)
 
 
-set.seed(21)
-
 M <- 250
 
 # Split data into K clusters
