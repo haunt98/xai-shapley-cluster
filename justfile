@@ -47,3 +47,16 @@ part_6:
     rm -rf ./figures/part_6
     mkdir -p ./figures/part_6
     pdftoppm -png -r 300 ./Rplots.pdf ./figures/part_6/page
+
+part_7:
+    Rscript ./src/custom/Bikeshare.R --prediction-accuracy false
+    rm -rf ./figures/part_7
+    mkdir -p ./figures/part_7
+    pdftoppm -png -r 300 ./Rplots.pdf ./figures/part_7/page
+
+part_8:
+    Rscript ./src/custom/Bikeshare.R --prediction-accuracy true
+    rm -rf ./figures/part_8
+    mkdir -p ./figures/part_8
+    pdftoppm -png -r 300 ./Rplots.pdf ./figures/part_8/page
+
