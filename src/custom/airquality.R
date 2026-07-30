@@ -10,6 +10,7 @@ log_info("XAI Shapley Cluster - Airquality Dataset")
 
 # Init
 mmethod <- "lm" # Which regression model to use
+log_info("method: {mmethod}")
 
 option_list <- list(
   make_option(
@@ -34,6 +35,7 @@ airquality <- airquality[complete.cases(airquality), ]
 # Clusters by month
 month_labels <- sort(unique(airquality$Month))
 K <- length(month_labels)
+log_info("Number of clusters: {K}")
 
 # Build data matrix: y, x1, x2, x3, xS (month)
 mdata_full <- cbind(
@@ -50,12 +52,12 @@ index_mdata_day <- 6 # day
 
 set.seed(19)
 
-# Split data into train and test
+# Split data train test 80:20
 n <- nrow(mdata_full)
 shuffled_idx <- sample(n)
-half <- floor(n / 2)
-train_idx <- shuffled_idx[1:half]
-test_idx <- shuffled_idx[(half + 1):n]
+train_size <- floor(n * 0.8)
+train_idx <- shuffled_idx[1:train_size]
+test_idx <- shuffled_idx[(train_size + 1):n]
 
 mdata_train_full <- mdata_full[train_idx, ]
 mdata_test_full <- mdata_full[test_idx, ]
@@ -69,7 +71,10 @@ mdata_train <- mdata_train_full[, include_mdata]
 mdata_test <- mdata_test_full[, include_mdata]
 
 N_train <- nrow(mdata_train)
+log_info("N_train: {N_train}")
+
 N_test <- nrow(mdata_test)
+log_info("N_test: {N_test}")
 
 # Per cluster sizes in data p
 month_sizes_train <- as.vector(table(mdata_train_full[, index_mdata_xS]))
@@ -97,7 +102,7 @@ mtext("Train data (airquality)", side = 3, line = -1.5, outer = TRUE)
 
 set.seed(21)
 
-M <- 100
+M <- 250
 
 # Split data into K clusters
 mdata_train_k <- lapply(seq_len(K), function(k) {

@@ -25,6 +25,7 @@ log_info("XAI Shapley Cluster")
 
 # Init
 mmethod <- "rf" # Which regression model to use
+log_info("method: {mmethod}")
 
 option_list <- list(
   make_option(
@@ -49,10 +50,16 @@ global_classification <- opt$`global-classification`
 log_info("global_classification: {global_classification}")
 
 K <- 5 # Number of clusters
+log_info("Number of clusters: {K}")
+
 N <- 100 * K * 4 # Number of datapoints
 
 N_train <- N / 4
+log_info("N_train: {N_train}")
+
 N_test <- N / 4
+log_info("N_test: {N_test}")
+
 N_eval <- N / 2 # Do nothing for now
 
 set.seed(2)
