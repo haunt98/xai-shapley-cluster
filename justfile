@@ -35,3 +35,15 @@ part_4:
     rm -rf ./figures/part_4
     mkdir -p ./figures/part_4
     pdftoppm -png -r 300 ./Rplots.pdf ./figures/part_4/page
+
+part_5:
+    Rscript ./src/custom/BostonHousing2.R --prediction-accuracy false
+    rm -rf ./figures/part_5
+    mkdir -p ./figures/part_5
+    pdftoppm -png -r 300 ./Rplots.pdf ./figures/part_5/page
+
+part_6:
+    Rscript ./src/custom/BostonHousing2.R.R --prediction-accuracy true
+    rm -rf ./figures/part_6
+    mkdir -p ./figures/part_6
+    pdftoppm -png -r 300 ./Rplots.pdf ./figures/part_6/page
