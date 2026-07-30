@@ -30,30 +30,33 @@ data("Bikeshare", package = "ISLR2")
 
 # Remove incomplete cases
 Bikeshare <- Bikeshare[complete.cases(Bikeshare), ]
+# write.csv(Bikeshare, "datasets/Bikeshare.csv", row.names = TRUE)
 
 # Clusters by month
 mnth_labels <- sort(unique(Bikeshare$mnth))
 K <- length(mnth_labels)
 log_info("Number of clusters: {K}")
 
-# Build data matrix: y, x1..x10 (all predictors), xS (mnth)
+# Build data matrix: y, x1..x9 (all predictors), xS (mnth), days_since_2011 (for sorting)
 mdata_full <- cbind(
   y = Bikeshare$bikers,
-  x1 = Bikeshare$season,
-  x2 = Bikeshare$yr,
-  x3 = Bikeshare$holiday,
-  x4 = Bikeshare$weekday,
-  x5 = Bikeshare$workingday,
-  x6 = Bikeshare$weathersit,
-  x7 = Bikeshare$temp,
-  x8 = Bikeshare$atemp,
-  x9 = Bikeshare$hum,
-  x10 = Bikeshare$windspeed,
-  xS = Bikeshare$mnth
+  x1 = Bikeshare$yr,
+  x2 = Bikeshare$holiday,
+  x3 = Bikeshare$weekday,
+  x4 = Bikeshare$workingday,
+  x5 = Bikeshare$weathersit,
+  x6 = Bikeshare$temp,
+  x8 = Bikeshare$hum,
+  x9 = Bikeshare$windspeed,
+  xS = Bikeshare$mnth,
+  days_since_2011 = Bikeshare$days_since_2011,
+  hr = Bikeshare$hr
 )
-n_features <- 10
+n_features <- 9
 include_mdata <- seq_len(n_features + 1) # y + all predictors
 index_mdata_xS <- n_features + 2 # xS
+index_mdata_day <- n_features + 3 # days_since_2011
+index_mdata_hr <- n_features + 4 # hr
 
 set.seed(19)
 
@@ -67,9 +70,13 @@ test_idx <- shuffled_idx[(train_size + 1):n]
 mdata_train_full <- mdata_full[train_idx, ]
 mdata_test_full <- mdata_full[test_idx, ]
 
-# Sort data by cluster labels
-mdata_train_full <- mdata_train_full[order(mdata_train_full[, index_mdata_xS]), ]
-mdata_test_full <- mdata_test_full[order(mdata_test_full[, index_mdata_xS]), ]
+# Sort data by cluster labels, then by day, then by hour within each cluster
+mdata_train_full <- mdata_train_full[
+  order(mdata_train_full[, index_mdata_xS], mdata_train_full[, index_mdata_day], mdata_train_full[, index_mdata_hr]),
+]
+mdata_test_full <- mdata_test_full[
+  order(mdata_test_full[, index_mdata_xS], mdata_test_full[, index_mdata_day], mdata_test_full[, index_mdata_hr]),
+]
 
 # mdata is mdata_full without the cluster labels (xS)
 mdata_train <- mdata_train_full[, include_mdata]
@@ -94,8 +101,19 @@ for (k in 1:K) {
   col_array_train[idx] <- k
 }
 
-feature_names <- c("bikers", "season", "yr", "holiday", "weekday", "workingday", "weathersit", "temp", "atemp", "hum", "windspeed")
-plot_groups <- list(1:4, 5:8, 9:11)
+feature_names <- c(
+  "bikers",
+  "yr",
+  "holiday",
+  "weekday",
+  "workingday",
+  "weathersit",
+  "temp",
+  "atemp",
+  "hum",
+  "windspeed"
+)
+plot_groups <- list(1:4, 5:8, 9:10)
 
 for (pg in seq_along(plot_groups)) {
   par(mar = c(2, 5, 2, 2))
