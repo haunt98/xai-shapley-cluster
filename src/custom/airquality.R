@@ -43,12 +43,10 @@ mdata_full <- cbind(
   x1 = airquality$Solar.R,
   x2 = airquality$Wind,
   x3 = airquality$Temp,
-  xS = airquality$Month,
-  day = airquality$Day
+  xS = airquality$Month
 )
 include_mdata <- c(1, 2, 3, 4) # y, x1, x2, x3
 index_mdata_xS <- 5 # xS
-index_mdata_day <- 6 # day
 
 set.seed(19)
 
@@ -62,9 +60,9 @@ test_idx <- shuffled_idx[(train_size + 1):n]
 mdata_train_full <- mdata_full[train_idx, ]
 mdata_test_full <- mdata_full[test_idx, ]
 
-# Sort data by cluster labels, then by day within each cluster
-mdata_train_full <- mdata_train_full[order(mdata_train_full[, index_mdata_xS], mdata_train_full[, index_mdata_day]), ]
-mdata_test_full <- mdata_test_full[order(mdata_test_full[, index_mdata_xS], mdata_test_full[, index_mdata_day]), ]
+# Sort data by cluster labels
+mdata_train_full <- mdata_train_full[order(mdata_train_full[, index_mdata_xS]), ]
+mdata_test_full <- mdata_test_full[order(mdata_test_full[, index_mdata_xS]), ]
 
 # mdata is mdata_full without the cluster labels (xS)
 mdata_train <- mdata_train_full[, include_mdata]
