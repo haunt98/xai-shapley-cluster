@@ -180,9 +180,9 @@ layout(
 )
 
 # Top: full prediction or squared error
-plot(seq_along(plotted_value), plotted_value, xaxs = "i", main = "", type = "l", col = 11, lwd = 3)
+plot(seq_along(plotted_value), plotted_value, xaxs = "i", main = "", type = "l", col = "black", lwd = 3)
 for (point_index in selected_points) {
-  points(point_index, plotted_value[point_index], pch = 16, cex = 1.5, col = 9)
+  points(point_index, plotted_value[point_index], pch = 16, cex = 1.5, col = "red")
   abline(v = point_index, lty = 2)
 }
 
