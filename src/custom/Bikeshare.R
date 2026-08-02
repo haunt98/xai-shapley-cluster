@@ -58,6 +58,9 @@ mdata_full <- cbind(
 n_features <- 8
 include_mdata <- seq_len(n_features + 1) # y + all predictors
 
+mnth_sizes_full <- table(mdata_full[, "xS"])
+log_info("mdata_full per month: {paste(names(mnth_sizes_full), mnth_sizes_full, sep = '=', collapse = ', ')}")
+
 secret_test_per_month <- 15 # Secret test set for final evaluation
 log_info("secret_test_per_month: {secret_test_per_month}")
 
@@ -182,7 +185,7 @@ month_equal_idx <- lapply(seq_len(K), function(k) {
 
 # Strategy one (Baseline): sample N_budget datapoints exclusively for each cluster month
 month_one_idx <- lapply(seq_len(K), function(k) {
-  sample(month_pool_exclude_shapley_test[[k]], N_budget)
+  sample(month_pool_exclude_shapley_test[[k]], N_equal_per_month)
 })
 
 # Strategy max (Proposed)
@@ -191,7 +194,7 @@ w_k <- exp(-global_phi_M / tau)
 quota <- N_budget * w_k / sum(w_k)
 
 # Allocate each cluster month by quota
-N_max_k <- pmax(floor(quota), 1)
+N_max_k <- pmax(floor(quota), floor(N_equal_per_month / 2))
 remaining <- N_budget - sum(N_max_k)
 
 while (remaining > 0) {
