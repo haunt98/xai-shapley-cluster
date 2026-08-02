@@ -26,8 +26,9 @@ option_list <- list(
 opt <- parse_args(OptionParser(option_list = option_list))
 
 prediction_accuracy <- opt$`prediction-accuracy`
+log_info("prediction_accuracy: {prediction_accuracy}")
 
-M <- 400 # Number of cluster permutations
+M <- 100 # Number of cluster permutations
 log_info("M: {M}")
 
 # Load Bikeshare dataset
