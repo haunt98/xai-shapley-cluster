@@ -104,6 +104,15 @@ mdata_secret_test <- do.call(
   })
 )
 
+N_secret_test <- nrow(mdata_secret_test)
+
+secret_test_month_labels <- do.call(
+  c,
+  lapply(seq_len(K), function(k) {
+    rep(mnth_labels[k], secret_test_per_month)
+  })
+)
+
 mdata_shapley_test <- do.call(
   rbind,
   lapply(seq_len(K), function(k) {
@@ -191,47 +200,32 @@ while (remaining > 0) {
   remaining <- remaining - 1
 }
 names(N_max_k) <- mnth_labels
-for (k in seq_len(K)) {
-  log_info("n_max_k[{k}] {n_max_k[k]}")
-}
+log_info("N_max_k: {paste(paste(mnth_labels, N_max_k, sep = '='), collapse = ', ')}")
 
 month_max_idx <- lapply(seq_len(K), function(k) {
   sample(month_pool_exclude_shapley_test[[k]], N_max_k[k])
 })
 
 # Phase 3: Evaluation
+
+# Strategy equal
 mdata_equal_train <- do.call(
   rbind,
   lapply(seq_len(K), function(k) {
     mdata_full[month_equal_idx[[k]], include_mdata, drop = FALSE]
   })
 )
-mdata_max_train <- do.call(
-  rbind,
-  lapply(seq_len(K), function(k) {
-    mdata_full[month_max_idx[[k]], include_mdata, drop = FALSE]
-  })
-)
 
-# equal: 1 global model trained on 600 balanced instances
 pred_equal <- fn_prediction(data_train = mdata_equal_train, data_test = mdata_secret_test, method = mmethod)
 
-# one: month-specific model for each k, predicts only its own test month
-
-N_secret_test <- nrow(mdata_secret_test)
-log_info("N_secret_test: {N_secret_test}")
-
-secret_test_month_labels <- do.call(
-  c,
-  lapply(seq_len(K), function(k) {
-    rep(mnth_labels[k], secret_test_per_month)
-  })
-)
-
+# Strategy one
 pred_one <- numeric(N_secret_test)
+
 for (k in seq_len(K)) {
   test_k <- which(secret_test_month_labels == mnth_labels[k])
+
   mdata_one_train_k <- mdata_full[month_one_idx[[k]], include_mdata, drop = FALSE]
+
   pred_one[test_k] <- fn_prediction(
     data_train = mdata_one_train_k,
     data_test = mdata_secret_test[test_k, , drop = FALSE],
@@ -239,62 +233,58 @@ for (k in seq_len(K)) {
   )
 }
 
-# max: 1 global model trained on softmax-allocated instances
-pred_max <- fn_prediction(data_train = mdata_max_train, data_test = mdata_secret_test, method = mmethod)
-
-# RMSE per month across the three strategies
-rmse_per_month <- function(pred) {
-  sapply(seq_len(K), function(k) {
-    test_k <- which(secret_test_month_labels == mnth_labels[k])
-    sqrt(mean((pred[test_k] - mdata_secret_test[test_k, 1])^2))
+# Strategy max
+mdata_max_train <- do.call(
+  rbind,
+  lapply(seq_len(K), function(k) {
+    mdata_full[month_max_idx[[k]], include_mdata, drop = FALSE]
   })
-}
-rmse_equal <- rmse_per_month(pred_equal)
-rmse_one <- rmse_per_month(pred_one)
-rmse_max <- rmse_per_month(pred_max)
-names(rmse_equal) <- mnth_labels
-names(rmse_one) <- mnth_labels
-names(rmse_max) <- mnth_labels
-
-log_info("RMSE equal: {paste(paste(mnth_labels, round(rmse_equal, 4), sep = '='), collapse = ', ')}")
-log_info("RMSE one: {paste(paste(mnth_labels, round(rmse_one, 4), sep = '='), collapse = ', ')}")
-log_info("RMSE max: {paste(paste(mnth_labels, round(rmse_max, 4), sep = '='), collapse = ', ')}")
-log_info("Overall RMSE equal: {sqrt(mean((pred_equal - mdata_test[, 1])^2))}")
-log_info("Overall RMSE one: {sqrt(mean((pred_one - mdata_test[, 1])^2))}")
-log_info("Overall RMSE max: {sqrt(mean((pred_max - mdata_test[, 1])^2))}")
-
-# Plot sampling allocation per month (equal vs max)
-par(mar = c(5, 5.5, 3, 1))
-par(mfrow = c(1, 1))
-barplot(
-  rbind(equal = rep(N_equal_per_month, K), max = N_max_k),
-  beside = TRUE,
-  names.arg = mnth_labels,
-  col = c(1, 2),
-  xlab = "Month",
-  ylab = "Training samples (N = 600)",
-  legend.text = c("equal", "max"),
-  args.legend = list(x = "topleft", bty = "n")
 )
 
-# Plot RMSE per month: verify max achieves the lowest error
+pred_max <- fn_prediction(data_train = mdata_max_train, data_test = mdata_secret_test, method = mmethod)
+
+# MSE per month across 3 strategies
+fn_mse_per_month <- function(pred) {
+  sapply(seq_len(K), function(k) {
+    test_k <- which(secret_test_month_labels == mnth_labels[k])
+    mean((pred[test_k] - mdata_secret_test[test_k, 1])^2)
+  })
+}
+
+mse_equal <- fn_mse_per_month(pred_equal)
+mse_one <- fn_mse_per_month(pred_one)
+mse_max <- fn_mse_per_month(pred_max)
+
+names(mse_equal) <- mnth_labels
+names(mse_one) <- mnth_labels
+names(mse_max) <- mnth_labels
+
+log_info("MSE equal: {paste(paste(mnth_labels, round(mse_equal, 4), sep = '='), collapse = ', ')}")
+log_info("MSE one: {paste(paste(mnth_labels, round(mse_one, 4), sep = '='), collapse = ', ')}")
+log_info("MSE max: {paste(paste(mnth_labels, round(mse_max, 4), sep = '='), collapse = ', ')}")
+log_info("Global MSE equal: {mean((pred_equal - mdata_secret_test[, 1])^2)}")
+log_info("Global MSE one: {mean((pred_one - mdata_secret_test[, 1])^2)}")
+log_info("Global MSE max: {mean((pred_max - mdata_secret_test[, 1])^2)}")
+
+
+# Plot MSE per month
 par(mar = c(5, 5.5, 3, 1))
 par(mfrow = c(1, 1))
-ymax <- max(rmse_equal, rmse_one, rmse_max)
+ymax <- max(mse_equal, mse_one, mse_max)
 plot(
   seq_len(K),
-  rmse_equal,
+  mse_equal,
   type = "l",
   col = 1,
   lwd = 2,
   ylim = c(0, ymax * 1.1),
   xlab = "Month",
-  ylab = "RMSE",
+  ylab = "MSE",
   xaxt = "n"
 )
 axis(1, at = seq_len(K), labels = mnth_labels)
-lines(seq_len(K), rmse_one, col = 2, lwd = 2, lty = 2)
-lines(seq_len(K), rmse_max, col = 3, lwd = 2, lty = 3)
+lines(seq_len(K), mse_one, col = 2, lwd = 2, lty = 2)
+lines(seq_len(K), mse_max, col = 3, lwd = 2, lty = 3)
 legend(
   "topleft",
   legend = c("equal", "one", "max"),
