@@ -13,5 +13,5 @@
 # Projects
 .RData
 .Rhistory
-Rplots.pdf
+*.pdf
 figures
