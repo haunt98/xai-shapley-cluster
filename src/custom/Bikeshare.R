@@ -28,7 +28,7 @@ opt <- parse_args(OptionParser(option_list = option_list))
 prediction_accuracy <- opt$`prediction-accuracy`
 log_info("prediction_accuracy: {prediction_accuracy}")
 
-M <- 100 # Number of cluster permutations
+M <- 150 # Number of cluster permutations
 log_info("M: {M}")
 
 # Load Bikeshare dataset
@@ -37,9 +37,8 @@ data("Bikeshare", package = "ISLR2")
 # Remove incomplete cases
 Bikeshare <- Bikeshare[complete.cases(Bikeshare), ]
 
-# Clusters by month
-mnth_labels <- sort(unique(Bikeshare$mnth))
-K <- length(mnth_labels) # 12
+# Clusters by month: 1..12
+K <- length(unique(Bikeshare$mnth)) # 12
 log_info("Number of clusters: {K}")
 
 # Build data matrix: y, x1..x8 (all predictors), xS (mnth)
@@ -53,7 +52,7 @@ mdata_full <- cbind(
   x6 = Bikeshare$temp,
   x7 = Bikeshare$hum,
   x8 = Bikeshare$windspeed,
-  xS = Bikeshare$mnth
+  xS = as.integer(Bikeshare$mnth)
 )
 n_features <- 8
 include_mdata <- seq_len(n_features + 1) # y + all predictors
@@ -61,10 +60,10 @@ include_mdata <- seq_len(n_features + 1) # y + all predictors
 mnth_sizes_full <- table(mdata_full[, "xS"])
 log_info("mdata_full per month: {paste(names(mnth_sizes_full), mnth_sizes_full, sep = '=', collapse = ', ')}")
 
-secret_test_per_month <- 15 # Secret test set for final evaluation
+secret_test_per_month <- 30 # Secret test set for final evaluation
 log_info("secret_test_per_month: {secret_test_per_month}")
 
-shapley_test_per_month <- 30 # Used for training Shapley
+shapley_test_per_month <- 200 # Used for training Shapley
 log_info("shapley_test_per_month: {shapley_test_per_month}")
 
 shapley_train_per_month <- 400 # Used for training Shapley
@@ -77,7 +76,7 @@ set.seed(19)
 
 # Split data by cluster month
 month_indices <- lapply(seq_len(K), function(k) {
-  which(Bikeshare$mnth == mnth_labels[k])
+  which(mdata_full[, "xS"] == k)
 })
 
 month_secret_test_idx <- lapply(month_indices, function(idx) {
@@ -113,7 +112,7 @@ N_secret_test <- nrow(mdata_secret_test)
 secret_test_month_labels <- do.call(
   c,
   lapply(seq_len(K), function(k) {
-    rep(mnth_labels[k], secret_test_per_month)
+    rep(k, secret_test_per_month)
   })
 )
 
@@ -144,7 +143,6 @@ phi <- fn_shapley_cluster(
 # Global Shapley values for each cluster
 global_phi <- apply(phi, MARGIN = c(2, 3), FUN = mean, na.rm = TRUE)
 global_phi_M <- global_phi[, M]
-names(global_phi_M) <- mnth_labels
 
 # Plot convergence of global Shapley values for each cluster
 par(mar = c(5, 5.5, 3, 1))
@@ -203,8 +201,7 @@ while (remaining > 0) {
   N_max_k[j] <- N_max_k[j] + 1
   remaining <- remaining - 1
 }
-names(N_max_k) <- mnth_labels
-log_info("N_max_k: {paste(mnth_labels, N_max_k, sep = '=', collapse = ', ')}")
+log_info("N_max_k: {paste(seq_len(K), N_max_k, sep = '=', collapse = ', ')}")
 
 month_max_idx <- lapply(seq_len(K), function(k) {
   sample(month_pool_exclude_shapley_test[[k]], N_max_k[k])
@@ -226,7 +223,7 @@ pred_equal <- fn_prediction(data_train = mdata_equal_train, data_test = mdata_se
 pred_one <- numeric(N_secret_test)
 
 for (k in seq_len(K)) {
-  test_k <- which(secret_test_month_labels == mnth_labels[k])
+  test_k <- which(secret_test_month_labels == k)
 
   mdata_one_train_k <- mdata_full[month_one_idx[[k]], include_mdata, drop = FALSE]
 
@@ -250,7 +247,7 @@ pred_max <- fn_prediction(data_train = mdata_max_train, data_test = mdata_secret
 # MSE per month across 3 strategies
 fn_mse_per_month <- function(pred) {
   sapply(seq_len(K), function(k) {
-    test_k <- which(secret_test_month_labels == mnth_labels[k])
+    test_k <- which(secret_test_month_labels == k)
     mean((pred[test_k] - mdata_secret_test[test_k, 1])^2)
   })
 }
@@ -259,13 +256,9 @@ mse_equal <- fn_mse_per_month(pred_equal)
 mse_one <- fn_mse_per_month(pred_one)
 mse_max <- fn_mse_per_month(pred_max)
 
-names(mse_equal) <- mnth_labels
-names(mse_one) <- mnth_labels
-names(mse_max) <- mnth_labels
-
-log_info("MSE equal: {paste(mnth_labels, round(mse_equal, 4), sep = '=', collapse = ', ')}")
-log_info("MSE one: {paste(mnth_labels, round(mse_one, 4), sep = '=', collapse = ', ')}")
-log_info("MSE max: {paste(mnth_labels, round(mse_max, 4), sep = '=', collapse = ', ')}")
+log_info("MSE equal: {paste(seq_len(K), round(mse_equal, 4), sep = '=', collapse = ', ')}")
+log_info("MSE one: {paste(seq_len(K), round(mse_one, 4), sep = '=', collapse = ', ')}")
+log_info("MSE max: {paste(seq_len(K), round(mse_max, 4), sep = '=', collapse = ', ')}")
 log_info("Global MSE equal: {mean((pred_equal - mdata_secret_test[, 1])^2)}")
 log_info("Global MSE one: {mean((pred_one - mdata_secret_test[, 1])^2)}")
 log_info("Global MSE max: {mean((pred_max - mdata_secret_test[, 1])^2)}")
@@ -285,7 +278,7 @@ plot(
   ylab = "MSE",
   xaxt = "n"
 )
-axis(1, at = seq_len(K), labels = mnth_labels)
+axis(1, at = seq_len(K), labels = seq_len(K))
 lines(seq_len(K), mse_one, col = 2, lwd = 2, lty = 2)
 lines(seq_len(K), mse_max, col = 3, lwd = 2, lty = 3)
 legend(
