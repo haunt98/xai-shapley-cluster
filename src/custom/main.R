@@ -219,7 +219,6 @@ if (global_classification) {
 }
 
 # Global Shapley values for each cluster
-# phi has dimensions (N_test, K, M)
 global_phi <- apply(phi, MARGIN = c(2, 3), FUN = mean, na.rm = TRUE)
 
 full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)

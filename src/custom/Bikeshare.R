@@ -26,14 +26,15 @@ option_list <- list(
 opt <- parse_args(OptionParser(option_list = option_list))
 
 prediction_accuracy <- opt$`prediction-accuracy`
-log_info("prediction_accuracy: {prediction_accuracy}")
+
+M <- 400 # Number of cluster permutations
+log_info("M: {M}")
 
 # Load Bikeshare dataset
 data("Bikeshare", package = "ISLR2")
 
 # Remove incomplete cases
 Bikeshare <- Bikeshare[complete.cases(Bikeshare), ]
-# write.csv(Bikeshare, "datasets/Bikeshare.csv", row.names = TRUE)
 
 # Clusters by month
 mnth_labels <- sort(unique(Bikeshare$mnth))
@@ -55,98 +56,84 @@ mdata_full <- cbind(
 )
 n_features <- 8
 include_mdata <- seq_len(n_features + 1) # y + all predictors
-index_mdata_xS <- n_features + 2 # xS
+
+secret_test_per_month <- 15 # Secret test set for final evaluation
+log_info("secret_test_per_month: {secret_test_per_month}")
+
+shapley_test_per_month <- 30 # Used for training Shapley
+log_info("shapley_test_per_month: {shapley_test_per_month}")
+
+shapley_train_per_month <- 400 # Used for training Shapley
+log_info("shapley_train_per_month: {shapley_train_per_month}")
+
+N_budget <- 600 # Used for final evaluation = 12 (cluster) x 50
+log_info("N_budget: {N_budget}")
 
 set.seed(19)
 
-# Split data train test 80:20
-n <- nrow(mdata_full)
-shuffled_idx <- sample(n)
-train_size <- floor(n * 0.8)
-train_idx <- shuffled_idx[1:train_size]
-test_idx <- shuffled_idx[(train_size + 1):n]
-
-mdata_train_full <- mdata_full[train_idx, ]
-mdata_test_full <- mdata_full[test_idx, ]
-
-# Sort data by cluster labels
-mdata_train_full <- mdata_train_full[order(mdata_train_full[, index_mdata_xS]), ]
-mdata_test_full <- mdata_test_full[order(mdata_test_full[, index_mdata_xS]), ]
-
-# mdata is mdata_full without the cluster labels (xS)
-mdata_train <- mdata_train_full[, include_mdata]
-mdata_test <- mdata_test_full[, include_mdata]
-
-N_train <- nrow(mdata_train)
-log_info("N_train: {N_train}")
-
-N_test <- nrow(mdata_test)
-log_info("N_test: {N_test}")
-
-# Per cluster sizes in data p
-mnth_sizes_train <- as.vector(table(mdata_train_full[, index_mdata_xS]))
-mnth_sizes_test <- as.vector(table(mdata_test_full[, index_mdata_xS]))
-
-# Plot train data
-col_array_train <- array(NA, N_train)
-offsets_train <- c(0, cumsum(mnth_sizes_train[-K]))
-for (k in 1:K) {
-  idx <- (offsets_train[k] + 1):(offsets_train[k] + mnth_sizes_train[k])
-  col_array_train[idx] <- k
-}
-
-feature_names <- c(
-  "bikers",
-  "hr",
-  "holiday",
-  "weekday",
-  "workingday",
-  "weathersit",
-  "temp",
-  "hum",
-  "windspeed"
-)
-plot_groups <- list(1:3, 4:6, 7:9)
-
-for (pg in seq_along(plot_groups)) {
-  par(mar = c(2, 5, 2, 2))
-  par(mfrow = c(length(plot_groups[[pg]]), 1))
-  for (j in plot_groups[[pg]]) {
-    plot(mdata_train[, j], col = col_array_train, ylab = feature_names[j])
-  }
-  mtext("Train data (Bikeshare)", side = 3, line = -1.5, outer = TRUE)
-}
-
-M <- 250
-
-# Split data into K clusters
-mdata_train_k <- lapply(seq_len(K), function(k) {
-  idx <- (offsets_train[k] + 1):(offsets_train[k] + mnth_sizes_train[k])
-  mdata_train[idx, , drop = FALSE]
+# Split data by cluster month
+month_indices <- lapply(seq_len(K), function(k) {
+  which(Bikeshare$mnth == mnth_labels[k])
 })
-for (k in seq_len(K)) {
-  log_info("Cluster {k} size: {nrow(mdata_train_k[[k]])}")
-}
+
+month_secret_test_idx <- lapply(month_indices, function(idx) {
+  sample(idx, secret_test_per_month)
+})
+
+# Exclude secret test
+month_pool_idx <- lapply(seq_len(K), function(k) {
+  setdiff(month_indices[[k]], month_secret_test_idx[[k]])
+})
+
+month_shapley_test_idx <- lapply(month_pool_idx, function(idx) {
+  sample(idx, shapley_test_per_month)
+})
+
+month_pool_exclude_shapley_test <- lapply(seq_len(K), function(k) {
+  setdiff(month_pool_idx[[k]], month_shapley_test_idx[[k]])
+})
+
+month_shapley_train_idx <- lapply(month_pool_exclude_shapley_test, function(idx) {
+  sample(idx, shapley_train_per_month)
+})
+
+mdata_secret_test <- do.call(
+  rbind,
+  lapply(seq_len(K), function(k) {
+    mdata_full[month_secret_test_idx[[k]], include_mdata, drop = FALSE]
+  })
+)
+
+mdata_shapley_test <- do.call(
+  rbind,
+  lapply(seq_len(K), function(k) {
+    mdata_full[month_shapley_test_idx[[k]], include_mdata, drop = FALSE]
+  })
+)
+
+mdata_shapley_train_k <- lapply(seq_len(K), function(k) {
+  mdata_full[month_shapley_train_idx[[k]], include_mdata, drop = FALSE]
+})
+
+# Phase 1: Calulate Shapley values for each cluster
 
 set.seed(7)
 
 phi <- fn_shapley_cluster(
   K = K,
   M = M,
-  data_train_k = mdata_train_k,
-  data_test = mdata_test,
+  data_train_k = mdata_shapley_train_k,
+  data_test = mdata_shapley_test,
   prediction_accuracy = prediction_accuracy,
   method = mmethod
 )
 
 # Global Shapley values for each cluster
-# phi has dimensions (N_test, K, M)
 global_phi <- apply(phi, MARGIN = c(2, 3), FUN = mean, na.rm = TRUE)
+global_phi_M <- global_phi[, M]
+names(global_phi_M) <- mnth_labels
 
-full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
-log_info("MSE: {mean((full_prediction - mdata_test[, 1])^2)}")
-
-# Plot convergence of Shapley values for each cluster
+# Plot convergence of global Shapley values for each cluster
 par(mar = c(5, 5.5, 3, 1))
 par(mfrow = c(1, 1))
 plot(
@@ -172,57 +159,146 @@ legend(
   lwd = 2
 )
 
-# Pick 4 equally distributed test points
-selected_points <- round(seq(1, N_test, length.out = 6))[2:5]
+# Phase 2: Build training data for 3 strategies: equal, one, max
 
-if (!prediction_accuracy) {
-  plotted_value <- full_prediction
-  plot_title <- "Predictions (Bikeshare)"
-} else {
-  plotted_value <- (full_prediction - mdata_test[, 1])^2
-  plot_title <- "Squared Error (Bikeshare)"
+set.seed(11)
+
+N_equal_per_month <- N_budget / K # 50
+
+# Strategy equal (Baseline): sample equal datapoints for each cluster month
+month_equal_idx <- lapply(seq_len(K), function(k) {
+  sample(month_pool_exclude_shapley_test[[k]], N_equal_per_month)
+})
+
+# Strategy one (Baseline): sample N_budget datapoints exclusively for each cluster month
+month_one_idx <- lapply(seq_len(K), function(k) {
+  sample(month_pool_exclude_shapley_test[[k]], N_budget)
+})
+
+# Strategy max (Proposed)
+tau <- max(sd(global_phi_M), 1e-6)
+w_k <- exp(-global_phi_M / tau)
+quota <- N_budget * w_k / sum(w_k)
+
+# Allocate each cluster month by quota
+N_max_k <- pmax(floor(quota), 1)
+remaining <- N_budget - sum(N_max_k)
+
+while (remaining > 0) {
+  # Allocate remaining with largest different between quota and current allocation
+  j <- which.max(quota - N_max_k)
+  N_max_k[j] <- N_max_k[j] + 1
+  remaining <- remaining - 1
+}
+names(N_max_k) <- mnth_labels
+for (k in seq_len(K)) {
+  log_info("n_max_k[{k}] {n_max_k[k]}")
 }
 
-par(mar = c(3, 3, 2, 2) * .7)
-n_cols <- length(selected_points)
-layout(
-  matrix(
-    c(
-      rep(1, n_cols),
-      2:(n_cols + 1),
-      (n_cols + 2):(2 * n_cols + 1)
-    ),
-    nrow = 3,
-    ncol = n_cols,
-    byrow = TRUE
-  ),
-  respect = TRUE
+month_max_idx <- lapply(seq_len(K), function(k) {
+  sample(month_pool_exclude_shapley_test[[k]], N_max_k[k])
+})
+
+# Phase 3: Evaluation
+mdata_equal_train <- do.call(
+  rbind,
+  lapply(seq_len(K), function(k) {
+    mdata_full[month_equal_idx[[k]], include_mdata, drop = FALSE]
+  })
+)
+mdata_max_train <- do.call(
+  rbind,
+  lapply(seq_len(K), function(k) {
+    mdata_full[month_max_idx[[k]], include_mdata, drop = FALSE]
+  })
 )
 
-# Top: full prediction or squared error
-plot(seq_along(plotted_value), plotted_value, xaxs = "i", main = "", type = "l", col = "black", lwd = 3)
-for (point_index in selected_points) {
-  points(point_index, plotted_value[point_index], pch = 16, cex = 1.5, col = "red")
-  abline(v = point_index, lty = 2)
+# equal: 1 global model trained on 600 balanced instances
+pred_equal <- fn_prediction(data_train = mdata_equal_train, data_test = mdata_secret_test, method = mmethod)
+
+# one: month-specific model for each k, predicts only its own test month
+
+N_secret_test <- nrow(mdata_secret_test)
+log_info("N_secret_test: {N_secret_test}")
+
+secret_test_month_labels <- do.call(
+  c,
+  lapply(seq_len(K), function(k) {
+    rep(mnth_labels[k], secret_test_per_month)
+  })
+)
+
+pred_one <- numeric(N_secret_test)
+for (k in seq_len(K)) {
+  test_k <- which(secret_test_month_labels == mnth_labels[k])
+  mdata_one_train_k <- mdata_full[month_one_idx[[k]], include_mdata, drop = FALSE]
+  pred_one[test_k] <- fn_prediction(
+    data_train = mdata_one_train_k,
+    data_test = mdata_secret_test[test_k, , drop = FALSE],
+    method = mmethod
+  )
 }
 
-# Middle: local Shapley values for each selected point
-for (point_index in selected_points) {
-  barplot(phi[point_index, , M], horiz = TRUE, col = seq_len(K), main = "")
-  box()
-}
+# max: 1 global model trained on softmax-allocated instances
+pred_max <- fn_prediction(data_train = mdata_max_train, data_test = mdata_secret_test, method = mmethod)
 
-# Bottom: convergence of Shapley values for each selected point
-for (point_index in selected_points) {
-  point_phi <- phi[point_index, , , drop = FALSE]
-  plot(NA, xlim = c(1, M), ylim = range(point_phi, na.rm = TRUE), xlab = "", ylab = "", axes = FALSE)
-  axis(1, labels = FALSE)
-  axis(2)
-  abline(h = 0, lty = 3)
-  for (cluster_index in seq_len(K)) {
-    lines(seq_len(M), phi[point_index, cluster_index, ], col = cluster_index)
-  }
-  box()
+# RMSE per month across the three strategies
+rmse_per_month <- function(pred) {
+  sapply(seq_len(K), function(k) {
+    test_k <- which(secret_test_month_labels == mnth_labels[k])
+    sqrt(mean((pred[test_k] - mdata_secret_test[test_k, 1])^2))
+  })
 }
+rmse_equal <- rmse_per_month(pred_equal)
+rmse_one <- rmse_per_month(pred_one)
+rmse_max <- rmse_per_month(pred_max)
+names(rmse_equal) <- mnth_labels
+names(rmse_one) <- mnth_labels
+names(rmse_max) <- mnth_labels
 
-mtext(plot_title, side = 3, line = -7.5, outer = TRUE)
+log_info("RMSE equal: {paste(paste(mnth_labels, round(rmse_equal, 4), sep = '='), collapse = ', ')}")
+log_info("RMSE one: {paste(paste(mnth_labels, round(rmse_one, 4), sep = '='), collapse = ', ')}")
+log_info("RMSE max: {paste(paste(mnth_labels, round(rmse_max, 4), sep = '='), collapse = ', ')}")
+log_info("Overall RMSE equal: {sqrt(mean((pred_equal - mdata_test[, 1])^2))}")
+log_info("Overall RMSE one: {sqrt(mean((pred_one - mdata_test[, 1])^2))}")
+log_info("Overall RMSE max: {sqrt(mean((pred_max - mdata_test[, 1])^2))}")
+
+# Plot sampling allocation per month (equal vs max)
+par(mar = c(5, 5.5, 3, 1))
+par(mfrow = c(1, 1))
+barplot(
+  rbind(equal = rep(N_equal_per_month, K), max = N_max_k),
+  beside = TRUE,
+  names.arg = mnth_labels,
+  col = c(1, 2),
+  xlab = "Month",
+  ylab = "Training samples (N = 600)",
+  legend.text = c("equal", "max"),
+  args.legend = list(x = "topleft", bty = "n")
+)
+
+# Plot RMSE per month: verify max achieves the lowest error
+par(mar = c(5, 5.5, 3, 1))
+par(mfrow = c(1, 1))
+ymax <- max(rmse_equal, rmse_one, rmse_max)
+plot(
+  seq_len(K),
+  rmse_equal,
+  type = "l",
+  col = 1,
+  lwd = 2,
+  ylim = c(0, ymax * 1.1),
+  xlab = "Month",
+  ylab = "RMSE",
+  xaxt = "n"
+)
+axis(1, at = seq_len(K), labels = mnth_labels)
+lines(seq_len(K), rmse_one, col = 2, lwd = 2, lty = 2)
+lines(seq_len(K), rmse_max, col = 3, lwd = 2, lty = 3)
+legend(
+  "topleft",
+  legend = c("equal", "one", "max"),
+  col = c(1, 2, 3),
+  lty = c(1, 2, 3),
+  lwd = 2
+)
