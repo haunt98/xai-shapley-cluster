@@ -38,7 +38,7 @@ Bikeshare <- Bikeshare[complete.cases(Bikeshare), ]
 
 # Clusters by month
 mnth_labels <- sort(unique(Bikeshare$mnth))
-K <- length(mnth_labels)
+K <- length(mnth_labels) # 12
 log_info("Number of clusters: {K}")
 
 # Build data matrix: y, x1..x8 (all predictors), xS (mnth)
@@ -124,7 +124,7 @@ mdata_shapley_train_k <- lapply(seq_len(K), function(k) {
   mdata_full[month_shapley_train_idx[[k]], include_mdata, drop = FALSE]
 })
 
-# Phase 1: Calulate Shapley values for each cluster
+# Phase 1: Calculate Shapley values for each cluster
 
 set.seed(7)
 
@@ -200,7 +200,7 @@ while (remaining > 0) {
   remaining <- remaining - 1
 }
 names(N_max_k) <- mnth_labels
-log_info("N_max_k: {paste(paste(mnth_labels, N_max_k, sep = '='), collapse = ', ')}")
+log_info("N_max_k: {paste(mnth_labels, N_max_k, sep = '=', collapse = ', ')}")
 
 month_max_idx <- lapply(seq_len(K), function(k) {
   sample(month_pool_exclude_shapley_test[[k]], N_max_k[k])
@@ -259,13 +259,12 @@ names(mse_equal) <- mnth_labels
 names(mse_one) <- mnth_labels
 names(mse_max) <- mnth_labels
 
-log_info("MSE equal: {paste(paste(mnth_labels, round(mse_equal, 4), sep = '='), collapse = ', ')}")
-log_info("MSE one: {paste(paste(mnth_labels, round(mse_one, 4), sep = '='), collapse = ', ')}")
-log_info("MSE max: {paste(paste(mnth_labels, round(mse_max, 4), sep = '='), collapse = ', ')}")
+log_info("MSE equal: {paste(mnth_labels, round(mse_equal, 4), sep = '=', collapse = ', ')}")
+log_info("MSE one: {paste(mnth_labels, round(mse_one, 4), sep = '=', collapse = ', ')}")
+log_info("MSE max: {paste(mnth_labels, round(mse_max, 4), sep = '=', collapse = ', ')}")
 log_info("Global MSE equal: {mean((pred_equal - mdata_secret_test[, 1])^2)}")
 log_info("Global MSE one: {mean((pred_one - mdata_secret_test[, 1])^2)}")
 log_info("Global MSE max: {mean((pred_max - mdata_secret_test[, 1])^2)}")
-
 
 # Plot MSE per month
 par(mar = c(5, 5.5, 3, 1))
