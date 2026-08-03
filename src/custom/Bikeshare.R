@@ -108,8 +108,6 @@ mdata_eval <- do.call(
   })
 )
 
-N_eval <- nrow(mdata_eval)
-
 eval_cluster_labels <- do.call(
   c,
   lapply(seq_len(K), function(k) {
