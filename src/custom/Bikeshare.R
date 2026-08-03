@@ -235,9 +235,9 @@ if (!prediction_accuracy) {
 }
 
 # Top: full prediction or squared error
-plot(seq_along(plotted_value), plotted_value, xaxs = "i", main = "", type = "l", col = 11, lwd = 3)
+plot(seq_along(plotted_value), plotted_value, xaxs = "i", main = "", type = "l", col = 11)
 for (point_index in selected_points) {
-  points(point_index, plotted_value[point_index], pch = 16, cex = 1.5, col = 9)
+  points(point_index, plotted_value[point_index], pch = 16, cex = 1.5, col = "black")
   abline(v = point_index, lty = 2)
 }
 
@@ -260,7 +260,7 @@ for (point_index in selected_points) {
   box()
 }
 
-mtext(plot_title, side = 3, line = -11.5, outer = TRUE)
+mtext(plot_title, side = 3, line = -7.5, outer = TRUE)
 
 # Phase 2: Build training data for 2 strategies: equal, max
 
@@ -352,15 +352,15 @@ plot(
   seq_len(K),
   mse_equal,
   type = "l",
-  col = 1,
-  lwd = 2,
+  col = 2,
+  lwd = 3,
   ylim = c(0, ymax * 1.1),
   xlab = "Month",
   ylab = "MSE",
   xaxt = "n"
 )
 axis(1, at = seq_len(K), labels = seq_len(K))
-lines(seq_len(K), mse_max, col = 3, lwd = 2, lty = 3)
+lines(seq_len(K), mse_max, col = 4, lwd = 3, lty = 3)
 legend(
   "topleft",
   legend = c("equal", "max"),
