@@ -4,8 +4,8 @@ library(optparse)
 
 library(khroma)
 
-vibrant <- color("vibrant")
-palette(vibrant(7))
+discreterainbow <- color("discreterainbow")
+palette(discreterainbow(12))
 
 source("src/custom/common.R")
 
