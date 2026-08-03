@@ -23,9 +23,6 @@ source("src/custom/common.R")
 log_info("XAI Shapley Cluster")
 
 # Init
-mmethod <- "rf" # Which regression model to use
-log_info("method: {mmethod}")
-
 option_list <- list(
   make_option(
     c("--prediction-accuracy"),
@@ -38,6 +35,12 @@ option_list <- list(
     type = "logical",
     default = FALSE,
     help = "Use global classification [default %default]"
+  ),
+  make_option(
+    c("--method"),
+    type = "character",
+    default = "rf",
+    help = "Regression model to use [default %default]"
   )
 )
 opt <- parse_args(OptionParser(option_list = option_list))
@@ -47,6 +50,9 @@ log_info("prediction_accuracy: {prediction_accuracy}")
 
 global_classification <- opt$`global-classification`
 log_info("global_classification: {global_classification}")
+
+mmethod <- opt$method
+log_info("method: {mmethod}")
 
 K <- 5 # Number of clusters
 log_info("Number of clusters: {K}")
