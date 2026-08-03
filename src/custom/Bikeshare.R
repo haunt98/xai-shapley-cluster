@@ -198,6 +198,64 @@ legend(
   lwd = 2
 )
 
+# Local Shapley values for selected points, 4 representative months
+selected_months <- c(1, 4, 8, 12)
+selected_points <- (selected_months - 1) * N_shapley_test_per_cluster + 50
+
+par(mar = c(3, 3, 2, 2) * .7)
+layout(
+  matrix(
+    c(
+      rep(1, length(selected_points)),
+      2:(length(selected_points) + 1),
+      (length(selected_points) + 2):(2 * length(selected_points) + 1)
+    ),
+    nrow = 3,
+    ncol = length(selected_points),
+    byrow = TRUE
+  ),
+  respect = TRUE
+)
+
+full_prediction <- fn_prediction(data_train = mdata_shapley_train, data_test = mdata_shapley_test, method = mmethod)
+log_info("MSE: {mean((full_prediction - mdata_shapley_test[, 1])^2)}")
+
+if (!prediction_accuracy) {
+  plotted_value <- full_prediction
+  plot_title <- "Predictions"
+} else {
+  plotted_value <- (full_prediction - mdata_shapley_test[, 1])^2
+  plot_title <- "Squared Error"
+}
+
+# Top: full prediction or squared error
+plot(seq_along(plotted_value), plotted_value, xaxs = "i", main = "", type = "l", col = 11, lwd = 3)
+for (point_index in selected_points) {
+  points(point_index, plotted_value[point_index], pch = 16, cex = 1.5, col = 9)
+  abline(v = point_index, lty = 2)
+}
+
+# Middle: local Shapley values for each selected point
+for (point_index in selected_points) {
+  barplot(phi[point_index, , M], horiz = TRUE, col = seq_len(K), main = "")
+  box()
+}
+
+# Bottom: convergence of Shapley values for each selected point
+for (point_index in selected_points) {
+  point_phi <- phi[point_index, , , drop = FALSE]
+  plot(NA, xlim = c(1, M), ylim = range(point_phi, na.rm = TRUE), xlab = "", ylab = "", axes = FALSE)
+  axis(1, labels = FALSE)
+  axis(2)
+  abline(h = 0, lty = 3)
+  for (cluster_index in seq_len(K)) {
+    lines(seq_len(M), phi[point_index, cluster_index, ], col = cluster_index)
+  }
+  box()
+}
+
+mtext(plot_title, side = 3, line = -11.5, outer = TRUE)
+
 # Phase 2: Build training data for 2 strategies: equal, max
 
 set.seed(11)
