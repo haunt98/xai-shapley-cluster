@@ -12,21 +12,27 @@ source("src/custom/common.R")
 log_info("XAI Shapley Cluster - Bikeshare Dataset")
 
 # Init
-mmethod <- "rf" # Which regression model to use
-log_info("method: {mmethod}")
-
 option_list <- list(
   make_option(
     c("--prediction-accuracy"),
     type = "logical",
     default = TRUE,
     help = "Use prediction accuracy [default %default]"
+  ),
+  make_option(
+    c("--method"),
+    type = "character",
+    default = "rf",
+    help = "Regression model to use [default %default]"
   )
 )
 opt <- parse_args(OptionParser(option_list = option_list))
 
 prediction_accuracy <- opt$`prediction-accuracy`
 log_info("prediction_accuracy: {prediction_accuracy}")
+
+mmethod <- opt$method
+log_info("method: {mmethod}")
 
 M <- 150 # Number of cluster permutations
 log_info("M: {M}")
