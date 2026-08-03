@@ -140,8 +140,10 @@ fn_plot_train_data <- function(mdata, col_array, title) {
   for (pg in seq_along(plot_groups)) {
     par(mar = c(2, 5, 2, 2))
     par(mfrow = c(length(plot_groups[[pg]]), 1))
+    cluster_boundaries <- which(diff(col_array) != 0)
     for (j in plot_groups[[pg]]) {
-      plot(mdata[, j], col = col_array, ylab = feature_names[j])
+      plot(mdata[, j], col = col_array, pch = 16, cex = 0.5, ylab = feature_names[j])
+      abline(v = cluster_boundaries, lty = 3, col = "gray70")
     }
     mtext(title, side = 3, line = -1.5, outer = TRUE)
   }
@@ -185,15 +187,17 @@ plot(
   seq_len(M),
   global_phi[1, ],
   type = "l",
-  col = 1,
-  lwd = 2,
+  col = adjustcolor(1, alpha.f = 0.85),
+  lwd = 1.5,
   xlim = c(1, M),
   ylim = range(global_phi, na.rm = TRUE),
   xlab = "Number of iterations (M)",
   ylab = "Global Shapley values (Bikeshare)",
 )
+grid()
+abline(h = 0, lty = 2, col = "gray50")
 for (cluster_index in 2:K) {
-  lines(seq_len(M), global_phi[cluster_index, ], col = cluster_index, lwd = 2)
+  lines(seq_len(M), global_phi[cluster_index, ], col = adjustcolor(cluster_index, alpha.f = 0.85), lwd = 1.5)
 }
 legend(
   "topright",
@@ -201,7 +205,8 @@ legend(
   legend = seq_len(K),
   col = seq_len(K),
   lty = 1,
-  lwd = 2
+  lwd = 1.5,
+  bty = "n"
 )
 
 # Local Shapley values for selected points, 4 representative months
@@ -220,7 +225,7 @@ layout(
     ncol = length(selected_points),
     byrow = TRUE
   ),
-  respect = TRUE
+  heights = c(2, 2, 1.2)
 )
 
 full_prediction <- fn_prediction(data_train = mdata_shapley_train, data_test = mdata_shapley_test, method = mmethod)
@@ -228,14 +233,12 @@ log_info("MSE: {mean((full_prediction - mdata_shapley_test[, 1])^2)}")
 
 if (!prediction_accuracy) {
   plotted_value <- full_prediction
-  plot_title <- "Predictions"
 } else {
   plotted_value <- (full_prediction - mdata_shapley_test[, 1])^2
-  plot_title <- "Squared Error"
 }
 
 # Top: full prediction or squared error
-plot(seq_along(plotted_value), plotted_value, xaxs = "i", main = "", type = "l", col = 11)
+plot(seq_along(plotted_value), plotted_value, xaxs = "i", main = "", type = "l", col = 11, cex = 0.5)
 for (point_index in selected_points) {
   points(point_index, plotted_value[point_index], pch = 16, cex = 1.5, col = "black")
   abline(v = point_index, lty = 2)
@@ -259,8 +262,6 @@ for (point_index in selected_points) {
   }
   box()
 }
-
-mtext(plot_title, side = 3, line = -7.5, outer = TRUE)
 
 # Phase 2: Build training data for 2 strategies: equal, max
 
@@ -364,7 +365,7 @@ lines(seq_len(K), mse_max, col = 4, lwd = 3, lty = 3)
 legend(
   "topleft",
   legend = c("equal", "max"),
-  col = c(1, 3),
+  col = c(2, 4),
   lty = c(1, 3),
   lwd = 2
 )
