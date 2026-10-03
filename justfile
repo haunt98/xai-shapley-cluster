@@ -6,9 +6,11 @@ air:
 lintr:
     Rscript -e 'lintr::lint_dir("./src/custom")'
 
-part_0_5: part_0 part_1 part_2 part_3 part_4 part_5
+parts: parts_0_5 parts_6_9
 
-part_6_9: part_6 part_7 part_8 part_9
+parts_0_5: part_0 part_1 part_2 part_3 part_4 part_5
+
+parts_6_9: part_6 part_7 part_8 part_9
 
 part_0:
     Rscript ./src/custom/main.R --prediction-accuracy false
