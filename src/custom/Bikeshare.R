@@ -65,19 +65,29 @@ include_mdata <- seq_len(n_features + 1) # y + all predictors
 
 mnth_sizes_full <- table(mdata_full[, "xS"])
 log_info("mdata_full per cluster: {paste(names(mnth_sizes_full), mnth_sizes_full, sep = '=', collapse = ', ')}")
-# 1=688, 2=649, 3=730, 4=719, 5=744, 6=720, 7=744, 8=731, 9=717, 10=743, 11=719, 12=741
 
+# Fail fast if the dataset changes
+expected_mnth_sizes <- c(688, 649, 730, 719, 744, 720, 744, 731, 717, 743, 719, 741)
+stopifnot(identical(as.integer(mnth_sizes_full), as.integer(expected_mnth_sizes)))
+
+# Split config (per cluster)
 N_eval_per_cluster <- 30 # Eval set for final evaluation
 log_info("N_eval_per_cluster: {N_eval_per_cluster}")
 
-N_shapley_test_per_cluster <- 200 # Used for evaluating Shapley
+N_shapley_test_per_cluster <- 200 # Used for testing Shapley
 log_info("N_shapley_test_per_cluster: {N_shapley_test_per_cluster}")
 
 N_shapley_train_per_cluster <- 400 # Used for training Shapley
 log_info("N_shapley_train_per_cluster: {N_shapley_train_per_cluster}")
 
-N_strategy_train <- 4800 # Used for final evaluation = 12 (cluster) x 400
-log_info("N_strategy_train: {N_strategy_train}")
+# Fail fast if any cluster is too small
+stopifnot(all(mnth_sizes_full >= N_eval_per_cluster + N_shapley_test_per_cluster + N_shapley_train_per_cluster))
+
+N_strategy_per_cluster <- 400 # Strategy equal: training points per cluster
+log_info("N_strategy_per_cluster: {N_strategy_per_cluster}")
+
+N_strategy_train <- N_strategy_per_cluster * K # Total training points for strategies equal/max
+log_info("N_strategy_train: {N_strategy_train} = {K} x {N_strategy_per_cluster}")
 
 set.seed(19)
 
@@ -106,6 +116,16 @@ cluster_pool_exclude_shapley_test <- lapply(seq_len(K), function(k) {
 cluster_shapley_train_idx <- lapply(cluster_pool_exclude_shapley_test, function(idx) {
   sample(idx, N_shapley_train_per_cluster)
 })
+
+# Sanity check: eval, test, train are disjoint per cluster
+stopifnot(all(mapply(
+  function(ev, te, tr) {
+    length(intersect(ev, te)) == 0 && length(intersect(ev, tr)) == 0 && length(intersect(te, tr)) == 0
+  },
+  cluster_eval_idx,
+  cluster_shapley_test_idx,
+  cluster_shapley_train_idx
+)))
 
 mdata_eval <- do.call(
   rbind,
@@ -268,10 +288,8 @@ for (point_index in selected_points) {
 set.seed(11)
 
 # Strategy equal (Baseline): sample equal datapoints for each cluster
-N_equal_per_cluster <- N_strategy_train / K
-
 cluster_equal_idx <- lapply(seq_len(K), function(k) {
-  sample(cluster_pool_idx[[k]], N_equal_per_cluster)
+  sample(cluster_pool_idx[[k]], N_strategy_per_cluster)
 })
 
 # Strategy max (Proposed)
@@ -281,7 +299,7 @@ quota <- N_strategy_train * w_k / sum(w_k)
 
 # Allocate each cluster by quota, capped by pool size
 pool_cap <- sapply(cluster_pool_idx, length)
-N_min_k <- floor(N_equal_per_cluster / 2)
+N_min_k <- floor(N_strategy_per_cluster / 2)
 N_max_k <- pmin(pmax(floor(quota), N_min_k), pool_cap)
 
 remaining <- N_strategy_train - sum(N_max_k)
