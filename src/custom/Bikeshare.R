@@ -70,7 +70,7 @@ log_info("mdata_full per cluster: {paste(names(mnth_sizes_full), mnth_sizes_full
 N_eval_per_cluster <- 30 # Eval set for final evaluation
 log_info("N_eval_per_cluster: {N_eval_per_cluster}")
 
-N_shapley_test_per_cluster <- 200 # Used for training Shapley
+N_shapley_test_per_cluster <- 200 # Used for evaluating Shapley
 log_info("N_shapley_test_per_cluster: {N_shapley_test_per_cluster}")
 
 N_shapley_train_per_cluster <- 400 # Used for training Shapley
