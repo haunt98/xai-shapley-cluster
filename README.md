@@ -3,7 +3,8 @@
 ## Requirements
 
 ```sh
-brew install R air typst typstyle tinymist
+# Install R manually
+brew install air typst typstyle tinymist
 ```
 
 - https://github.com/r-lib/pak
