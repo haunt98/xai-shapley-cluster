@@ -5,6 +5,12 @@ require(FNN)
 require(nnet)
 require(randomForest)
 
+fn_write_csv <- function(x, file) {
+  dir.create(dirname(file), recursive = TRUE, showWarnings = FALSE)
+  write.csv(x, file = file, row.names = FALSE)
+  log_info("Saved {file}")
+}
+
 fn_prediction <- function(data_train, data_test, method, ntree = 100, maxnodes = 30) {
   # fit: Train the model using data_train and method
   # pred: Predict output for data_test

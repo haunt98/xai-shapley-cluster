@@ -41,6 +41,18 @@ option_list <- list(
     type = "character",
     default = "rf",
     help = "Regression model to use [default %default]"
+  ),
+  make_option(
+    c("--output"),
+    type = "character",
+    default = "results",
+    help = "Output directory to save results as CSV [default %default]"
+  ),
+  make_option(
+    c("--pdf"),
+    type = "character",
+    default = "Rplots.pdf",
+    help = "PDF file to save plots [default %default]"
   )
 )
 opt <- parse_args(OptionParser(option_list = option_list))
@@ -53,6 +65,15 @@ log_info("global_classification: {global_classification}")
 
 mmethod <- opt$method
 log_info("method: {mmethod}")
+
+output_dir <- opt$output
+log_info("output_dir: {output_dir}")
+
+pdf_path <- opt$pdf
+log_info("pdf: {pdf_path}")
+
+dir.create(dirname(pdf_path), recursive = TRUE, showWarnings = FALSE)
+pdf(file = pdf_path)
 
 K <- 5 # Number of clusters
 log_info("Number of clusters: {K}")
@@ -228,7 +249,51 @@ if (global_classification) {
 global_phi <- apply(phi, MARGIN = c(2, 3), FUN = mean, na.rm = TRUE)
 
 full_prediction <- fn_prediction(data_train = mdata_train, data_test = mdata_test, method = mmethod)
-log_info("MSE: {mean((full_prediction - mdata_test[, 1])^2)}")
+mse_full <- mean((full_prediction - mdata_test[, 1])^2)
+log_info("MSE: {mse_full}")
+
+# Save full model MSE
+fn_write_csv(data.frame(mse = mse_full), file.path(output_dir, "mse_full.csv"))
+
+# Save results to CSV
+params <- data.frame(
+  name = c(
+    "method",
+    "prediction_accuracy",
+    "global_classification",
+    "K",
+    "M",
+    "N_train",
+    "N_test"
+  ),
+  value = c(mmethod, prediction_accuracy, global_classification, K, M, N_train, N_test)
+)
+fn_write_csv(params, file.path(output_dir, "params.csv"))
+
+# Local Shapley values at the final iteration M: one row per test point, one column per cluster
+phi_local <- phi[,, M]
+colnames(phi_local) <- paste0("cluster_", seq_len(K))
+fn_write_csv(
+  data.frame(point = seq_len(dim(mdata_test)[1]), phi_local),
+  file.path(output_dir, "phi_local.csv")
+)
+
+# Global Shapley values at the final iteration M: one row per cluster
+fn_write_csv(
+  data.frame(cluster = paste0("cluster_", seq_len(K)), global_phi = global_phi[, M]),
+  file.path(output_dir, "phi_global.csv")
+)
+
+prediction_csv <- data.frame(
+  point = seq_len(dim(mdata_test)[1]),
+  actual = mdata_test[, 1],
+  prediction = full_prediction,
+  squared_error = (full_prediction - mdata_test[, 1])^2
+)
+if (global_classification) {
+  prediction_csv$actual_state <- actual_states
+}
+fn_write_csv(prediction_csv, file.path(output_dir, "prediction.csv"))
 
 # Plot convergence of Shapley values for each cluster
 par(mar = c(5, 5.5, 3, 1))
@@ -309,4 +374,14 @@ if (!global_classification) {
   }
 
   mtext(plot_title, side = 3, line = -11.5, outer = TRUE)
+
+  # Save local Shapley values of selected points at the final iteration M
+  phi_selected <- phi[selected_points, , M]
+  colnames(phi_selected) <- paste0("cluster_", seq_len(K))
+  fn_write_csv(
+    data.frame(point = selected_points, phi_selected),
+    file.path(output_dir, "phi_selected.csv")
+  )
 }
+
+dev.off()

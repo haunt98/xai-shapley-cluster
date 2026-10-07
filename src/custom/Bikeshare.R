@@ -24,6 +24,18 @@ option_list <- list(
     type = "character",
     default = "rf",
     help = "Regression model to use [default %default]"
+  ),
+  make_option(
+    c("--output"),
+    type = "character",
+    default = "results",
+    help = "Output directory to save results as CSV [default %default]"
+  ),
+  make_option(
+    c("--pdf"),
+    type = "character",
+    default = "Rplots.pdf",
+    help = "PDF file to save plots [default %default]"
   )
 )
 opt <- parse_args(OptionParser(option_list = option_list))
@@ -33,6 +45,15 @@ log_info("prediction_accuracy: {prediction_accuracy}")
 
 mmethod <- opt$method
 log_info("method: {mmethod}")
+
+output_dir <- opt$output
+log_info("output_dir: {output_dir}")
+
+pdf_path <- opt$pdf
+log_info("pdf: {pdf_path}")
+
+dir.create(dirname(pdf_path), recursive = TRUE, showWarnings = FALSE)
+pdf(file = pdf_path)
 
 M <- 150 # Number of cluster permutations
 log_info("M: {M}")
@@ -200,6 +221,45 @@ global_phi <- apply(phi, MARGIN = c(2, 3), FUN = mean, na.rm = TRUE)
 global_phi_M <- global_phi[, M]
 log_info("global_phi_M: {paste(seq_len(K), round(global_phi_M, 4), sep = '=', collapse = ', ')}")
 
+# Save Shapley results to CSV
+params <- data.frame(
+  name = c(
+    "method",
+    "prediction_accuracy",
+    "K",
+    "M",
+    "N_shapley_train_per_cluster",
+    "N_shapley_test_per_cluster",
+    "N_eval_per_cluster",
+    "N_strategy_per_cluster"
+  ),
+  value = c(
+    mmethod,
+    prediction_accuracy,
+    K,
+    M,
+    N_shapley_train_per_cluster,
+    N_shapley_test_per_cluster,
+    N_eval_per_cluster,
+    N_strategy_per_cluster
+  )
+)
+fn_write_csv(params, file.path(output_dir, "params.csv"))
+
+# Local Shapley values at the final iteration M: one row per test point, one column per cluster
+phi_local <- phi[,, M]
+colnames(phi_local) <- paste0("cluster_", seq_len(K))
+fn_write_csv(
+  data.frame(point = seq_len(dim(mdata_shapley_test)[1]), phi_local),
+  file.path(output_dir, "phi_local.csv")
+)
+
+# Global Shapley values at the final iteration M: one row per cluster
+fn_write_csv(
+  data.frame(cluster = paste0("cluster_", seq_len(K)), global_phi = global_phi[, M]),
+  file.path(output_dir, "phi_global.csv")
+)
+
 # Plot convergence of global Shapley values for each cluster
 par(mar = c(5, 5.5, 3, 1))
 par(mfrow = c(1, 1))
@@ -233,6 +293,14 @@ legend(
 selected_months <- c(1, 4, 8, 12)
 selected_points <- (selected_months - 1) * N_shapley_test_per_cluster + 50
 
+# Save local Shapley values of selected points at the final iteration M
+phi_selected <- phi[selected_points, , M]
+colnames(phi_selected) <- paste0("cluster_", seq_len(K))
+fn_write_csv(
+  data.frame(point = selected_points, phi_selected),
+  file.path(output_dir, "phi_selected.csv")
+)
+
 par(mar = c(3, 3, 2, 2) * .7)
 layout(
   matrix(
@@ -249,7 +317,22 @@ layout(
 )
 
 full_prediction <- fn_prediction(data_train = mdata_shapley_train, data_test = mdata_shapley_test, method = mmethod)
-log_info("MSE: {mean((full_prediction - mdata_shapley_test[, 1])^2)}")
+mse_full <- mean((full_prediction - mdata_shapley_test[, 1])^2)
+log_info("MSE: {mse_full}")
+
+# Save full model MSE
+fn_write_csv(data.frame(mse = mse_full), file.path(output_dir, "mse_full.csv"))
+
+# Save full model prediction per test point
+fn_write_csv(
+  data.frame(
+    point = seq_len(dim(mdata_shapley_test)[1]),
+    actual = mdata_shapley_test[, 1],
+    prediction = full_prediction,
+    squared_error = (full_prediction - mdata_shapley_test[, 1])^2
+  ),
+  file.path(output_dir, "prediction.csv")
+)
 
 if (!prediction_accuracy) {
   plotted_value <- full_prediction
@@ -321,6 +404,19 @@ while (remaining < 0) {
 stopifnot(sum(N_max_k) == N_strategy_train)
 log_info("N_max_k: {paste(seq_len(K), N_max_k, sep = '=', collapse = ', ')}")
 
+# Save training data allocation per strategy
+fn_write_csv(
+  data.frame(
+    cluster = paste0("cluster_", seq_len(K)),
+    global_phi = global_phi_M,
+    w = w_k,
+    quota = quota,
+    n_equal = rep(N_strategy_per_cluster, K),
+    n_max = N_max_k
+  ),
+  file.path(output_dir, "strategy_allocation.csv")
+)
+
 cluster_max_idx <- lapply(seq_len(K), function(k) {
   sample(cluster_pool_idx[[k]], N_max_k[k])
 })
@@ -347,6 +443,20 @@ mdata_max_train <- do.call(
 
 pred_max <- fn_prediction(data_train = mdata_max_train, data_test = mdata_eval, method = mmethod)
 
+# Save strategy predictions per eval point
+fn_write_csv(
+  data.frame(
+    point = seq_len(dim(mdata_eval)[1]),
+    cluster = eval_cluster_labels,
+    actual = mdata_eval[, 1],
+    pred_equal = pred_equal,
+    pred_max = pred_max,
+    squared_error_equal = (pred_equal - mdata_eval[, 1])^2,
+    squared_error_max = (pred_max - mdata_eval[, 1])^2
+  ),
+  file.path(output_dir, "strategy_prediction.csv")
+)
+
 # MSE per cluster across 2 strategies
 fn_mse_per_cluster <- function(pred) {
   sapply(seq_len(K), function(k) {
@@ -357,11 +467,23 @@ fn_mse_per_cluster <- function(pred) {
 
 mse_equal <- fn_mse_per_cluster(pred_equal)
 mse_max <- fn_mse_per_cluster(pred_max)
+mse_equal_global <- mean((pred_equal - mdata_eval[, 1])^2)
+mse_max_global <- mean((pred_max - mdata_eval[, 1])^2)
 
 log_info("MSE equal: {paste(seq_len(K), round(mse_equal, 4), sep = '=', collapse = ', ')}")
 log_info("MSE max: {paste(seq_len(K), round(mse_max, 4), sep = '=', collapse = ', ')}")
-log_info("Global MSE equal: {mean((pred_equal - mdata_eval[, 1])^2)}")
-log_info("Global MSE max: {mean((pred_max - mdata_eval[, 1])^2)}")
+log_info("Global MSE equal: {mse_equal_global}")
+log_info("Global MSE max: {mse_max_global}")
+
+# Save MSE per cluster across 2 strategies and global MSE
+fn_write_csv(
+  data.frame(cluster = seq_len(K), mse_equal = mse_equal, mse_max = mse_max),
+  file.path(output_dir, "mse_per_cluster.csv")
+)
+fn_write_csv(
+  data.frame(strategy = c("equal", "max"), global_mse = c(mse_equal_global, mse_max_global)),
+  file.path(output_dir, "mse_global.csv")
+)
 
 # Plot MSE per cluster
 par(mar = c(5, 5.5, 3, 1))
@@ -387,3 +509,5 @@ legend(
   lty = c(1, 3),
   lwd = 2
 )
+
+dev.off()
