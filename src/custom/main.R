@@ -178,10 +178,10 @@ if (global_classification) {
     plot(mdata_test[, j], col = col_array_train, ylab = colnames(mdata_full)[j])
     # Plot anomalies
     if (j == 2) {
-      points(200:249, mdata_test[200:249, 2], col = 3, pch = 16)
+      points(200:249, mdata_test[200:249, 2], col = "red", pch = 16)
     }
     if (j == 5) {
-      points(300:349, mdata_test[300:349, 5], col = 3, pch = 16)
+      points(300:349, mdata_test[300:349, 5], col = "red", pch = 16)
     }
   }
 
@@ -196,7 +196,7 @@ if (global_classification) {
   # Plot y, x1, x2, x3, x4
   for (j in include_mdata) {
     plot(mdata_train[, j], col = col_array_train, ylab = colnames(mdata_full)[j], ylim = c(-1, 1))
-    points(X_test_pred[, j], col = "red")
+    points(X_test_pred[, j], col = "yellow")
   }
 
   mtext("Compare train data with AAKR predictions", side = 3, line = -1.5, outer = TRUE)
@@ -207,7 +207,7 @@ if (global_classification) {
   # Plot y, x1, x2, x3, x4
   for (j in include_mdata) {
     plot(mdata_test[, j], col = col_array_train, ylab = colnames(mdata_full)[j], ylim = c(-1, 1))
-    points(X_test_pred[, j], col = "red")
+    points(X_test_pred[, j], col = "yellow")
   }
 
   mtext("Compare test data with AAKR predictions", side = 3, line = -1.5, outer = TRUE)
