@@ -376,8 +376,8 @@ cluster_equal_idx <- lapply(seq_len(K), function(k) {
 })
 
 # Strategy max (Proposed)
-tau <- max(2.5 * sd(global_phi_M), 1e-6)
-w_k <- exp(-global_phi_M / tau)
+tau <- max(4 * sd(global_phi_M), 1e-6)
+w_k <- exp(global_phi_M / tau)
 quota <- N_strategy_train * w_k / sum(w_k)
 
 # Allocate each cluster by quota, capped by pool size
